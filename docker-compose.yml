@@ -1,0 +1,40 @@
+version: '3.4'
+
+services:
+  pblayla:
+    image: ${DOCKER_REGISTRY-}pblayla
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: PbLayla/Dockerfile
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./Data/configs:/app/configs
+    environment:
+    - PBLAYLA_PbLayla__Accounts__0__Name=Account1
+    - PBLAYLA_PbLayla__Accounts__0__ApiKey=
+    - PBLAYLA_PbLayla__Accounts__0__ApiSecret=
+    - PBLAYLA_PbLayla__Accounts__0__Exchange=Bybit
+    - PBLAYLA_PbLayla__Accounts__0__IsUnified=true
+    - PBLAYLA_PbLayla__Accounts__0__ConfigTemplateFileName=template.hjson
+    - PBLAYLA_PbLayla__Accounts__0__StuckExposureRatio=0.95
+    - PBLAYLA_PbLayla__Accounts__0__MinStuckTime=03:00:00
+    - PBLAYLA_PbLayla__Accounts__0__StageOneTotalStuckExposure=1.0
+    - PBLAYLA_PbLayla__Accounts__0__StateChangeCheckTime=00:02:00
+    - PBLAYLA_PbLayla__Accounts__0__ConfigsPath=/app/configs
+    - PBLAYLA_PbLayla__Accounts__0__OverExposeFilterFactor=1.1
+    - PBLAYLA_PbLayla__Accounts__0__UnstuckConfig=unstuck.json
+    - PBLAYLA_PbLayla__Accounts__0__UnstuckExposure=1.0
+    - PBLAYLA_PbLayla__Accounts__0__DisableOthersWhileUnstucking=false
+    - PBLAYLA_PbLayla__Accounts__0__PriceDistanceStuck=0.05
+    - PBLAYLA_PbLayla__Accounts__0__PriceDistanceCloseHedge=0.04
+    - PBLAYLA_PbLayla__Accounts__0__PriceDistanceUnstuckStuck=0.13
+    - PBLAYLA_PbLayla__Accounts__0__PriceDistanceUnstuckCloseHedge=0.12
+    - PBLAYLA_PbLayla__Accounts__0__MaxHedgeReleaseAttempts=30
+    - PBLAYLA_PbLayla__Accounts__0__MaxHedgeReleaseAttemptsPeriod=1.00:00:00
+    - PBLAYLA_PbLayla__RiskMonitor__ExecutionInterval=00:00:05
+    #- PBLAYLA_PbLayla__Docker__DockerHost=unix:///var/run/docker.sock
+    # path to the folder where the configs are stored on the host machine
+    - PBLAYLA_PbLayla__Docker__MountConfigsPath=
+    # path to the api-keys.json on the host machine
+    - PBLAYLA_PbLayla__Docker__MountApiKeysPath=

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "PbLayla": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

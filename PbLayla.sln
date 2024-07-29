@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34728.123
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PbLayla", "PbLayla\PbLayla.csproj", "{863AF5FE-97CD-4219-AD68-4FABF8FF580A}"
+EndProject
+Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{82316D9D-908C-4880-B02B-3153814BD656}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PbLayla.Tests", "PbLayla.Tests\PbLayla.Tests.csproj", "{812879B4-30FF-4FE4-BD5D-67FC5000D24F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{863AF5FE-97CD-4219-AD68-4FABF8FF580A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{863AF5FE-97CD-4219-AD68-4FABF8FF580A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{863AF5FE-97CD-4219-AD68-4FABF8FF580A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{863AF5FE-97CD-4219-AD68-4FABF8FF580A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{82316D9D-908C-4880-B02B-3153814BD656}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{82316D9D-908C-4880-B02B-3153814BD656}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{82316D9D-908C-4880-B02B-3153814BD656}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{82316D9D-908C-4880-B02B-3153814BD656}.Release|Any CPU.Build.0 = Release|Any CPU
+		{812879B4-30FF-4FE4-BD5D-67FC5000D24F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{812879B4-30FF-4FE4-BD5D-67FC5000D24F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{812879B4-30FF-4FE4-BD5D-67FC5000D24F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{812879B4-30FF-4FE4-BD5D-67FC5000D24F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {35EAEE6D-FCE9-4617-BFE4-78AD504175EB}
+	EndGlobalSection
+EndGlobal
