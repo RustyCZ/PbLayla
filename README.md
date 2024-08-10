@@ -39,6 +39,13 @@ This risk management in default configuration takes over the lifecycle of PB. It
 
 `sudo systemctl restart docker`
 
+`chmod -R 777 /home/passivbot`
+
+## Hedge mode only
+It is possible to run only hedge mode part of this strategy by setting `ManagePbLifecycle=false` and `ManageHedges=true`. In this mode it is possible to skip most of the configuration and docker.sock setup.
+
+Only PriceDistanceStuck, PriceDistanceCloseHedge, MaxHedgeReleaseAttemptsPeriod and MaxHedgeReleaseAttempts are relevant.
+
 # Configuration
 - PBLAYLA_PbLayla__Accounts__0__Name
   - Name of the account, could be the same name used in PB
@@ -90,6 +97,10 @@ This risk management in default configuration takes over the lifecycle of PB. It
   - Path to the folder where the configs are stored on the host machine
 - PBLAYLA_PbLayla__Docker__MountApiKeysPath
   - Path to the api-keys.json on the host machine
+- PBLAYLA_PbLayla__Accounts__0__ManageHedges
+  - set to true to enable position hedging
+- PBLAYLA_PbLayla__Accounts__0__ManagePbLifecycle
+  - set to true to enable PB docker lifecycle managing including unstucking
 
   # Limitations
 - Risk management only for long positions (it uses short to hedge it)
