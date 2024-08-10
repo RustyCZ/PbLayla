@@ -14,7 +14,7 @@ This strategy is ideal for market that can temporarily crash with a V shape reco
 
 How to pick correct price distance where to place hedge? You might use hand tuner in PB with your favourite config and find it. For example in this chart price goes over 10% distance on average once a year. So 0.1 distance might a be a good pick as long as the cost of hedge is significantly smaller than gains. The cost of hedge depends on where you close the hedge.
 
-![price_action_distance](Docs/price_action_distance.png.png)
+![price_action_distance](./Docs/price_action_distance.png)
 
 The real challenge is to find the best combination of PB configs, total wallet exposure, unstucking and hedge open/close distances. For example when you run account with TWE 3.0 and you want to have maximum stop loss around -30%. The distance to open hedge should not be greater than 0.1.
 
