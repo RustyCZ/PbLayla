@@ -22,7 +22,7 @@ public class RiskMonitor : IRiskMonitor
     private Stopwatch? m_lastStateChangeCheck;
     private readonly IPbLifeCycleController m_lifeCycleController;
     private string? m_currentConfig;
-    private string? m_currentUnstuckingSymbol;
+    private readonly HashSet<string> m_currentUnstuckingSymbols;
 
     public RiskMonitor(IOptions<RiskMonitorOptions> options,
         IPbFuturesRestClient client,
@@ -44,6 +44,7 @@ public class RiskMonitor : IRiskMonitor
             {
                 WriteIndented = true,
             }));
+        m_currentUnstuckingSymbols = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
     }
 
     public async Task ExecuteAsync(CancellationToken cancel = default)
@@ -117,12 +118,9 @@ public class RiskMonitor : IRiskMonitor
 
     private async Task HedgePositionsAsync(RiskModel riskModel, CancellationToken cancel)
     {
-        var unstuckingSymbol = m_currentUnstuckingSymbol;
         foreach (var longPosition in riskModel.LongPositions.Values)
         {
-            if(longPosition.Position.Symbol != "1000RATSUSDT")
-                continue;
-            if (string.Equals(longPosition.Position.Symbol, unstuckingSymbol))
+            if (m_currentUnstuckingSymbols.Contains(longPosition.Position.Symbol))
             {
                 await HedgePositionAsync(
                     longPosition, 
@@ -287,51 +285,62 @@ public class RiskMonitor : IRiskMonitor
             template => template.GenerateNormalConfig(),
             NormalStartExchangeAsync,
             cancel);
-        m_currentUnstuckingSymbol = null;
+        m_currentUnstuckingSymbols.Clear();
     }
 
     private async Task EnsureStageOneStuckStateAsync(RiskModel riskModel, CancellationToken cancel)
     {
-        // first prefer previously stucked symbol
-        string? symbolToUnstuck = m_currentUnstuckingSymbol;
+        // first prefer previously stucked symbols
         var stuckPositions = riskModel.FilterStuckPositions(
             m_options.Value.StuckExposureRatio,
             m_options.Value.MinStuckTime,
             m_options.Value.PriceDistanceStuck);
 
-        if (!string.IsNullOrWhiteSpace(symbolToUnstuck) 
-            && !stuckPositions.Any(x => string.Equals(x.Position.Symbol, symbolToUnstuck, StringComparison.OrdinalIgnoreCase)))
-        {
-            // previous symbol is not stuck anymore
-            symbolToUnstuck = null;
-            m_currentUnstuckingSymbol = null;
-        }
+        // remove symbols that are not stuck anymore
+        var symbolsNotStuckAnymore = m_currentUnstuckingSymbols
+            .Except(stuckPositions.Select(x => x.Position.Symbol), StringComparer.InvariantCultureIgnoreCase)
+            .ToList();
+        foreach (var symbolNotStuckAnymore in symbolsNotStuckAnymore)
+            m_currentUnstuckingSymbols.Remove(symbolNotStuckAnymore);
 
-        if (stuckPositions.Length == 0 && symbolToUnstuck == null)
+        if (stuckPositions.Length == 0 && stuckPositions.Length == 0)
         {
             m_logger.LogWarning("{AccountName}: No stuck positions found", m_options.Value.AccountName);
             return;
         }
+
+        // add symbols that are overexposed
         var overexposedPositions = riskModel.FilterOverExposedPositions(
             m_options.Value.StuckExposureRatio,
             m_options.Value.MinStuckTime,
             m_options.Value.PriceDistanceStuck,
             m_options.Value.OverExposeFilterFactor);
-
-        if (symbolToUnstuck == null && overexposedPositions.Length > 0)
+        const int maxUnstuckSymbols = 2;
+        if (m_currentUnstuckingSymbols.Count < maxUnstuckSymbols && overexposedPositions.Length > 0)
         { 
-            var highestExposure = overexposedPositions.MaxBy(x => x.PositionExposure);
-            if (highestExposure != null)
-                symbolToUnstuck = highestExposure.Position.Symbol;
+            var orderedByHighestExposure = overexposedPositions.OrderByDescending(x => x.PositionExposure);
+            foreach (var overexposedPosition in orderedByHighestExposure)
+            {
+                if (m_currentUnstuckingSymbols.Count >= maxUnstuckSymbols)
+                    break;
+                m_currentUnstuckingSymbols.Add(overexposedPosition.Position.Symbol);
+            }
         }
 
-        // if no preferable positions found, try to unstuck the position with the highest unrealized PnL
-        symbolToUnstuck ??= stuckPositions
-            .OrderByDescending(x => x.Position.UnrealizedPnl)
-            .Select(x => x.Position.Symbol)
-            .FirstOrDefault();
+        // if no preferable positions found, try to unstuck the position with the highest unrealized PnL,
+        // they have the best chance to get unstuck
+        if (m_currentUnstuckingSymbols.Count < maxUnstuckSymbols)
+        {
+            var orderedByHighestUnrealizedPnl = stuckPositions.OrderByDescending(x => x.Position.UnrealizedPnl);
+            foreach (var stuckPosition in orderedByHighestUnrealizedPnl)
+            {
+                if (m_currentUnstuckingSymbols.Count >= maxUnstuckSymbols)
+                    break;
+                m_currentUnstuckingSymbols.Add(stuckPosition.Position.Symbol);
+            }
+        }
         
-        if(symbolToUnstuck == null)
+        if(m_currentUnstuckingSymbols.Count == 0)
         {
             m_logger.LogWarning("{AccountName}: No symbol to unstuck found", m_options.Value.AccountName);
             return;
@@ -340,13 +349,12 @@ public class RiskMonitor : IRiskMonitor
         await EnsureStateAsync(
             riskModel, 
             AccountState.StageOneStuck,
-            config => config.GenerateUnstuckConfig(symbolToUnstuck, 
+            config => config.GenerateUnstuckConfig(m_currentUnstuckingSymbols, 
                 m_options.Value.UnstuckConfig, 
                 m_options.Value.UnstuckExposure,
                 m_options.Value.DisableOthersWhileUnstucking),
             StageOneStartExchangeAsync,
             cancel);
-        m_currentUnstuckingSymbol = symbolToUnstuck;
     }
 
     private async Task StageOneStartExchangeAsync(CancellationToken cancel)

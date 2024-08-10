@@ -23,5 +23,6 @@
         public double PriceDistanceUnstuckCloseHedge { get; set; } = 0.09;
         public int MaxHedgeReleaseAttempts { get; set; } = 30;
         public TimeSpan MaxHedgeReleaseAttemptsPeriod { get; set; } = TimeSpan.FromHours(24);
+        public int MaxUnstuckSymbols { get; set; } = 1;
     }
 }

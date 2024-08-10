@@ -13,16 +13,16 @@ public static class PbMultiConfigExtensions
         return serializedConfig;
     }
 
-    public static string GenerateUnstuckConfig(this PbMultiConfig template, string symbolToUnstuck, string unstuckConfig, double unstuckExposure, bool disableOthers)
+    public static string GenerateUnstuckConfig(this PbMultiConfig template, HashSet<string> symbolsToUnstuck, string unstuckConfig, double unstuckExposure, bool disableOthers)
     {
         var config = template.Clone();
         var symbols = config.Symbols.ParseSymbols();
-        bool found = false;
+        var foundSymbols = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
         foreach (var symbolConfig in symbols)
         {
-            if (string.Equals(symbolToUnstuck, symbolConfig.Symbol, StringComparison.OrdinalIgnoreCase))
+            if (symbolsToUnstuck.Contains(symbolConfig.Symbol))
             {
-                found = true;
+                foundSymbols.Add(symbolConfig.Symbol);
                 symbolConfig.LongMode = TradeMode.GracefulStop;
                 symbolConfig.LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}");
                 symbolConfig.WalletExposureLimitLong = unstuckExposure;
@@ -34,18 +34,23 @@ public static class PbMultiConfigExtensions
             }
         }
 
-        if (!found)
+        // add stuck symbols that we have not found in config
+        foreach (var symbolToUnstuck in symbolsToUnstuck)
         {
-            var newSymbol = new SymbolOptions
+            if (!foundSymbols.Contains(symbolToUnstuck))
             {
-                LongMode = TradeMode.GracefulStop,
-                LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}"),
-                Symbol = symbolToUnstuck,
-                WalletExposureLimitLong = unstuckExposure,
-                ShortMode = TradeMode.Manual,
-            };
-            symbols = symbols.Append(newSymbol).ToArray();
+                var newSymbol = new SymbolOptions
+                {
+                    LongMode = TradeMode.GracefulStop,
+                    LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}"),
+                    Symbol = symbolToUnstuck,
+                    WalletExposureLimitLong = unstuckExposure,
+                    ShortMode = TradeMode.Manual,
+                };
+                symbols = symbols.Append(newSymbol).ToArray();
+            }
         }
+
         config.Symbols.UpdateSymbols(symbols);
 
         var serializedConfig = config.SerializeConfig();

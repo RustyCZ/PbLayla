@@ -34,5 +34,7 @@ public class RiskMonitorOptions
 
     public int MaxHedgeReleaseAttempts { get; set; } = 30;
 
+    public int MaxUnstuckSymbols { get; set; } = 1;
+
     public TimeSpan MaxHedgeReleaseAttemptsPeriod { get; set; } = TimeSpan.FromHours(24);
 }
