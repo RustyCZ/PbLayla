@@ -33,7 +33,7 @@ services:
     - PBLAYLA_PbLayla__Accounts__0__MaxHedgeReleaseAttempts=30
     - PBLAYLA_PbLayla__Accounts__0__MaxHedgeReleaseAttemptsPeriod=1.00:00:00
     - PBLAYLA_PbLayla__Accounts__0__ManageHedges=true
-    - PBLAYLA_PbLayla__Accounts__0__ManagePbLifecycle=false
-    - PBLAYLA_PbLayla__RiskMonitor__MaxUnstuckSymbols=1
+    - PBLAYLA_PbLayla__Accounts__0__ManagePbLifecycle=true
+    - PBLAYLA_PbLayla__Accounts__0__MaxUnstuckSymbols=1
     - PBLAYLA_PbLayla__Docker__MountConfigsPath=/home/passivbot/configs
     - PBLAYLA_PbLayla__Docker__MountApiKeysPath=/home/passivbot/api-keys.json

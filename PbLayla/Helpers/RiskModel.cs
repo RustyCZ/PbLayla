@@ -1,5 +1,6 @@
 ﻿using PbLayla.Model;
 using PbLayla.Model.PbConfig;
+using TradeMode = PbLayla.Model.PbConfig.TradeMode;
 
 namespace PbLayla.Helpers;
 
@@ -22,8 +23,14 @@ public class RiskModel
 
     public PositionRiskModel[] FilterStuckPositions(double positionStuckExposureRatio, TimeSpan minStuckTime, double priceDistanceStuck)
     {
+        var configSymbols = ConfigTemplate.Symbols.ParseSymbols();
+        var maintainedSymbols = configSymbols
+            .Where(x => x.LongMode == TradeMode.Normal || x.LongMode == TradeMode.GracefulStop)
+            .Select(x => x.Symbol)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var stuckPositions = LongPositions.Values
-            .Where(x => x.IsStuck(positionStuckExposureRatio, minStuckTime, IsOverStageOneTotalStuckExposure, priceDistanceStuck))
+            .Where(x => maintainedSymbols.Contains(x.Position.Symbol) 
+                        && x.IsStuck(positionStuckExposureRatio, minStuckTime, IsOverStageOneTotalStuckExposure, priceDistanceStuck))
             .ToArray();
         return stuckPositions;
     }

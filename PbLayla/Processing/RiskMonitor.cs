@@ -322,7 +322,7 @@ public class RiskMonitor : IRiskMonitor
             m_options.Value.MinStuckTime,
             m_options.Value.PriceDistanceStuck,
             m_options.Value.OverExposeFilterFactor);
-        const int maxUnstuckSymbols = 2;
+        int maxUnstuckSymbols = m_options.Value.MaxUnstuckSymbols;
         if (m_currentUnstuckingSymbols.Count < maxUnstuckSymbols && overexposedPositions.Length > 0)
         { 
             var orderedByHighestExposure = overexposedPositions.OrderByDescending(x => x.PositionExposure);
