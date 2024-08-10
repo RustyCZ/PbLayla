@@ -32,8 +32,11 @@ This strategy can help against rare random crashes but it has its own risks so u
 This risk management in default configuration takes over the lifecycle of PB. It takes PB multi symbol template, it configures it based on the current account state and starts PB in docker. When trading conditions change and PB needs to be started in unstucking config for certain coin it stops PB and starts it in another configuration. For this to happen it needs access to docker within docker container. Based on your operating system you might need to setup permisions for docker.sock
 
 `sudo groupadd docker`
+
 `sudo usermod -aG docker ${USER}`
+
 `sudo chmod 666 /var/run/docker.sock`
+
 `sudo systemctl restart docker`
 
 # Configuration
