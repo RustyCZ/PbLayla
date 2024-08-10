@@ -131,7 +131,9 @@ internal class Program
             PriceDistanceUnstuckCloseHedge = account.PriceDistanceUnstuckCloseHedge,
             MaxHedgeReleaseAttempts = account.MaxHedgeReleaseAttempts,
             MaxHedgeReleaseAttemptsPeriod = account.MaxHedgeReleaseAttemptsPeriod,
-            MaxUnstuckSymbols = account.MaxUnstuckSymbols
+            MaxUnstuckSymbols = account.MaxUnstuckSymbols,
+            ManageHedges = account.ManageHedges,
+            ManagePbLifecycle = account.ManagePbLifecycle
         });
         var fileHedgeRecordRepositoryOptions = new FileHedgeRecordRepositoryOptions
         {

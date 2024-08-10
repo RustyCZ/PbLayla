@@ -32,9 +32,8 @@ services:
     - PBLAYLA_PbLayla__Accounts__0__PriceDistanceUnstuckCloseHedge=0.12
     - PBLAYLA_PbLayla__Accounts__0__MaxHedgeReleaseAttempts=30
     - PBLAYLA_PbLayla__Accounts__0__MaxHedgeReleaseAttemptsPeriod=1.00:00:00
+    - PBLAYLA_PbLayla__Accounts__0__ManageHedges=true
+    - PBLAYLA_PbLayla__Accounts__0__ManagePbLifecycle=false
     - PBLAYLA_PbLayla__RiskMonitor__MaxUnstuckSymbols=1
-    #- PBLAYLA_PbLayla__Docker__DockerHost=unix:///var/run/docker.sock
-    # path to the folder where the configs are stored on the host machine
-    - PBLAYLA_PbLayla__Docker__MountConfigsPath=
-    # path to the api-keys.json on the host machine
-    - PBLAYLA_PbLayla__Docker__MountApiKeysPath=
+    - PBLAYLA_PbLayla__Docker__MountConfigsPath=/home/passivbot/configs
+    - PBLAYLA_PbLayla__Docker__MountApiKeysPath=/home/passivbot/api-keys.json

@@ -18,7 +18,7 @@ public class PbDocker
 
     public string ApiKeysPath { get; set; } = "/passivbot/api-keys.json";
 
-    public string? MountConfigsPath { get; set; }
+    public string? MountConfigsPath { get; set; } = "/home/passivbot/configs";
 
-    public string? MountApiKeysPath { get; set; }
+    public string? MountApiKeysPath { get; set; } = "/home/passivbot/api-keys.json";
 }

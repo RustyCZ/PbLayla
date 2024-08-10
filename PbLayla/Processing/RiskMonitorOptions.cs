@@ -37,4 +37,8 @@ public class RiskMonitorOptions
     public int MaxUnstuckSymbols { get; set; } = 1;
 
     public TimeSpan MaxHedgeReleaseAttemptsPeriod { get; set; } = TimeSpan.FromHours(24);
+
+    public bool ManagePbLifecycle { get; set; } = true;
+
+    public bool ManageHedges { get; set; } = true;
 }

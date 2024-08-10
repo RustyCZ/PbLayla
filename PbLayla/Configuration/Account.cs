@@ -24,5 +24,7 @@
         public int MaxHedgeReleaseAttempts { get; set; } = 30;
         public TimeSpan MaxHedgeReleaseAttemptsPeriod { get; set; } = TimeSpan.FromHours(24);
         public int MaxUnstuckSymbols { get; set; } = 1;
+        public bool ManagePbLifecycle { get; set; } = true;
+        public bool ManageHedges { get; set; } = true;
     }
 }

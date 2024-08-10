@@ -17,7 +17,7 @@ public class DockerPbLifeCycleController : IPbLifeCycleController
     {
         if(string.IsNullOrEmpty(options.Value.MountApiKeysPath))
             throw new ArgumentException("MountApiKeysPath is required");
-        if(string.IsNullOrEmpty(options.Value.MountApiKeysPath))
+        if(string.IsNullOrEmpty(options.Value.MountConfigsPath))
             throw new ArgumentException("MountConfigsPath is required");
         m_options = options;
         m_logger = logger;

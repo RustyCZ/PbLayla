@@ -96,24 +96,31 @@ public class RiskMonitor : IRiskMonitor
 
     private async Task MaintainRiskAsync(RiskModel riskModel, CancellationToken cancel)
     {
-        var accountState = EvaluateAccountState(riskModel);
-        m_logger.LogInformation("{AccountName}: Account state is {AccountState}",
-            m_options.Value.AccountName,
-            accountState);
-        switch (accountState)
+        if (m_options.Value.ManagePbLifecycle)
         {
-            case AccountState.Normal:
-                await EnsureNormalStateAsync(riskModel, cancel);
-                break;
-            case AccountState.StageOneStuck:
-                await EnsureStageOneStuckStateAsync(riskModel, cancel);
-                break;
-            default:
-                m_logger.LogWarning("{AccountName}: Unknown account state", m_options.Value.AccountName);
-                break;
+            var accountState = EvaluateAccountState(riskModel);
+            m_logger.LogInformation("{AccountName}: Account state is {AccountState}",
+                m_options.Value.AccountName,
+                accountState);
+            switch (accountState)
+            {
+                case AccountState.Normal:
+                    await EnsureNormalStateAsync(riskModel, cancel);
+                    break;
+                case AccountState.StageOneStuck:
+                    await EnsureStageOneStuckStateAsync(riskModel, cancel);
+                    break;
+                default:
+                    m_logger.LogWarning("{AccountName}: Unknown account state", m_options.Value.AccountName);
+                    break;
+            }
         }
-        await CloseNakedShorts(riskModel, cancel);
-        await HedgePositionsAsync(riskModel, cancel);
+
+        if (m_options.Value.ManageHedges)
+        {
+            await CloseNakedShorts(riskModel, cancel);
+            await HedgePositionsAsync(riskModel, cancel);
+        }
     }
 
     private async Task HedgePositionsAsync(RiskModel riskModel, CancellationToken cancel)
@@ -439,64 +446,67 @@ public class RiskMonitor : IRiskMonitor
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(options.ConfigTemplateFileName))
+        if (m_options.Value.ManagePbLifecycle)
         {
-            m_logger.LogWarning("Config template file name is not set");
-            return false;
-        }
+            if (string.IsNullOrWhiteSpace(options.ConfigTemplateFileName))
+            {
+                m_logger.LogWarning("Config template file name is not set");
+                return false;
+            }
 
-        if (options.StuckExposureRatio <= 0)
-        {
-            m_logger.LogWarning("Stuck exposure ratio is not set");
-            return false;
-        }
+            if (options.StuckExposureRatio <= 0)
+            {
+                m_logger.LogWarning("Stuck exposure ratio is not set");
+                return false;
+            }
 
-        if (options.MinStuckTime <= TimeSpan.Zero)
-        {
-            m_logger.LogWarning("Min stuck time is not set");
-            return false;
-        }
+            if (options.MinStuckTime <= TimeSpan.Zero)
+            {
+                m_logger.LogWarning("Min stuck time is not set");
+                return false;
+            }
 
-        if (options.OverExposeFilterFactor <= 0)
-        {
-            m_logger.LogWarning("Over expose filter factor is not set");
-            return false;
-        }
+            if (options.OverExposeFilterFactor <= 0)
+            {
+                m_logger.LogWarning("Over expose filter factor is not set");
+                return false;
+            }
 
-        if (options.UnstuckExposure <= 0)
-        {
-            m_logger.LogWarning("Unstuck exposure is not set");
-            return false;
-        }
+            if (options.UnstuckExposure <= 0)
+            {
+                m_logger.LogWarning("Unstuck exposure is not set");
+                return false;
+            }
 
-        if (string.IsNullOrWhiteSpace(options.UnstuckConfig))
-        {
-            m_logger.LogWarning("Unstuck config is not set");
-            return false;
-        }
+            if (string.IsNullOrWhiteSpace(options.UnstuckConfig))
+            {
+                m_logger.LogWarning("Unstuck config is not set");
+                return false;
+            }
 
-        if (options.StateChangeCheckTime <= TimeSpan.Zero)
-        {
-            m_logger.LogWarning("State change check time is not set");
-            return false;
-        }
+            if (options.StateChangeCheckTime <= TimeSpan.Zero)
+            {
+                m_logger.LogWarning("State change check time is not set");
+                return false;
+            }
 
-        if (!Directory.Exists(options.ConfigsPath))
-        {
-            m_logger.LogWarning("Configs path does not exist");
-            return false;
-        }
+            if (!Directory.Exists(options.ConfigsPath))
+            {
+                m_logger.LogWarning("Configs path does not exist");
+                return false;
+            }
 
-        if (!File.Exists(Path.Combine(options.ConfigsPath, options.ConfigTemplateFileName)))
-        {
-            m_logger.LogWarning("Config template file does not exist {Template}", options.ConfigTemplateFileName);
-            return false;
-        }
+            if (!File.Exists(Path.Combine(options.ConfigsPath, options.ConfigTemplateFileName)))
+            {
+                m_logger.LogWarning("Config template file does not exist {Template}", options.ConfigTemplateFileName);
+                return false;
+            }
 
-        if (!File.Exists(Path.Combine(options.ConfigsPath, options.UnstuckConfig)))
-        {
-            m_logger.LogWarning("Unstuck config file does not exist {UnstuckConfig}", options.UnstuckConfig);
-            return false;
+            if (!File.Exists(Path.Combine(options.ConfigsPath, options.UnstuckConfig)))
+            {
+                m_logger.LogWarning("Unstuck config file does not exist {UnstuckConfig}", options.UnstuckConfig);
+                return false;
+            }
         }
 
         return true;
