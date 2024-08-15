@@ -29,7 +29,7 @@ public static class PbMultiConfigExtensions
             }
             else
             {
-                if(disableOthers)
+                if (disableOthers && symbolConfig.LongMode is TradeMode.GracefulStop or TradeMode.Normal)
                     symbolConfig.LongMode = TradeMode.TakeProfitOnly;
             }
         }
