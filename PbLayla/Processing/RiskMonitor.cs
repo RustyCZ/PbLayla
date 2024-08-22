@@ -53,17 +53,21 @@ public class RiskMonitor : IRiskMonitor
             m_options.Value.AccountName);
         try
         {
-            var configTemplate = LoadConfigTemplate();
-            if (configTemplate == null)
+            PbMultiConfig? configTemplate = null;
+            if (m_options.Value.ManagePbLifecycle)
             {
-                m_logger.LogWarning("{AccountName}: Config template is not available", m_options.Value.AccountName);
-                return;
-            }
+                configTemplate = LoadConfigTemplate();
+                if (configTemplate == null)
+                {
+                    m_logger.LogWarning("{AccountName}: Config template is not available", m_options.Value.AccountName);
+                    return;
+                }
 
-            if (configTemplate.Symbols.Count == 0)
-            {
-                m_logger.LogWarning("{AccountName}: Config template has no symbols", m_options.Value.AccountName);
-                return;
+                if (configTemplate.Symbols.Count == 0)
+                {
+                    m_logger.LogWarning("{AccountName}: Config template has no symbols", m_options.Value.AccountName);
+                    return;
+                }
             }
 
             var tickers = await m_client.GetTickersAsync(cancel);
@@ -386,6 +390,12 @@ public class RiskMonitor : IRiskMonitor
         if (!IsStateChangeCheckTimeElapsed())
             return;
         var configTemplate = riskModel.ConfigTemplate;
+        if (configTemplate == null)
+        {
+            m_logger.LogWarning("{AccountName}: Config template is not available", m_options.Value.AccountName);
+            return;
+        }
+            
         var newConfig = configTransformationFunc(configTemplate);
         var currentConfig = m_currentConfig;
         var currentState = await m_lifeCycleController.FindStartedAccountStateAsync(m_options.Value.AccountName, cancel);

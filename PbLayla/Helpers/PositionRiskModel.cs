@@ -5,7 +5,7 @@ namespace PbLayla.Helpers;
 
 public class PositionRiskModel
 {
-    public PositionRiskModel(Position position, double positionExposure, double positionExposureRatio, double priceActionDistance, Position? hedgePosition)
+    public PositionRiskModel(Position position, double positionExposure, double? positionExposureRatio, double priceActionDistance, Position? hedgePosition)
     {
         Position = position;
         PositionExposure = positionExposure;
@@ -16,7 +16,7 @@ public class PositionRiskModel
 
     public Position Position { get; set; }
     public double PositionExposure { get; set; }
-    public double PositionExposureRatio { get; set; }
+    public double? PositionExposureRatio { get; set; }
     public double PriceActionDistance { get; set; }
     public Position? HedgePosition { get; set; }
 
@@ -31,7 +31,9 @@ public class PositionRiskModel
     /// <returns></returns>
     public bool IsStuck(double positionStuckExposureRatio, TimeSpan minStuckTime, bool isOverStageOneTotalStuckExposure, double priceDistanceStuck)
     {
-        if(PositionExposureRatio > 1.0)
+        if (PositionExposureRatio == null)
+            return false;
+        if (PositionExposureRatio > 1.0)
             return true; // If position is overexposed, it is stuck.
 
         var isOverExpectedPositionExposureRatio = PositionExposureRatio > positionStuckExposureRatio;

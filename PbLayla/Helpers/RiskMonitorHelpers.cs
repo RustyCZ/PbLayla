@@ -106,13 +106,18 @@ public static class RiskMonitorHelpers
     public static PositionRiskModel CalculatePositionRiskModel(Position position, 
         Ticker ticker, 
         Balance balance, 
-        PbMultiConfig configTemplate, 
+        PbMultiConfig? configTemplate, 
         Position? hedgePosition)
     {
         var priceDistance = CalculatePriceDistance(position, ticker);
         var positionExposure = CalculatePositionExposure(position, balance);
-        var expectedMaxPositionExposure = configTemplate.TweLong / configTemplate.Symbols.Count;
-        var positionExposureRatio = CalculatePositionExposureRatio(position, balance, expectedMaxPositionExposure);
+        double? positionExposureRatio = null;
+        if (configTemplate != null)
+        {
+            var expectedMaxPositionExposure = configTemplate.TweLong / configTemplate.Symbols.Count;
+            positionExposureRatio = CalculatePositionExposureRatio(position, balance, expectedMaxPositionExposure);
+        }
+        
         var positionRiskModel = new PositionRiskModel(position, positionExposure, positionExposureRatio, priceDistance, hedgePosition);
         return positionRiskModel;
     }
@@ -120,7 +125,7 @@ public static class RiskMonitorHelpers
     public static RiskModel CalculateRiskModel(Position[] positions, 
         Ticker[] tickers, 
         Balance balance, 
-        PbMultiConfig configTemplate,
+        PbMultiConfig? configTemplate,
         double stageOneTotalStuckExposure,
         ILogger logger)
     {
