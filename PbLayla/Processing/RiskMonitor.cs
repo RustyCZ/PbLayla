@@ -87,6 +87,10 @@ public class RiskMonitor : IRiskMonitor
             }
 
             var riskModel = RiskMonitorHelpers.CalculateRiskModel(positions, tickers, balance, configTemplate, m_options.Value.StageOneTotalStuckExposure, m_logger);
+            string positionSymbols = string.Empty;
+            if(riskModel.LongPositions.Count > 0)
+                positionSymbols = string.Join(',', riskModel.LongPositions.Values.Select(p => p.Position.Symbol));
+            m_logger.LogInformation("{AccountName}: Maintaining risk for existing long positions: {Positions}", m_options.Value.AccountName, positionSymbols);
             await MaintainRiskAsync(riskModel, cancel);
         }
         catch (OperationCanceledException)
@@ -124,6 +128,7 @@ public class RiskMonitor : IRiskMonitor
         {
             await CloseNakedShorts(riskModel, cancel);
             await HedgePositionsAsync(riskModel, cancel);
+            m_logger.LogInformation("{AccountName}: managed hedges", m_options.Value.AccountName);
         }
     }
 
