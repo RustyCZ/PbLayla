@@ -41,6 +41,7 @@ public abstract class BybitPbFuturesRestClientBase : IPbFuturesRestClient
                     m_category,
                     settleAsset: Assets.QuoteAsset,
                     cursor: cursor,
+                    limit: 200,
                     ct: cancel);
                 if (!positionResult.GetResultOrError(out var data, out var error))
                     throw new InvalidOperationException(error.Message);
@@ -55,8 +56,6 @@ public abstract class BybitPbFuturesRestClientBase : IPbFuturesRestClient
 
                 if (string.IsNullOrWhiteSpace(data.NextPageCursor))
                     break;
-                else
-                    await Task.Delay(1000, cancel);
                 cursor = data.NextPageCursor;
             }
 
