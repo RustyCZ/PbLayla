@@ -11,8 +11,10 @@ using PbLayla.Exchanges;
 using PbLayla.Helpers;
 using PbLayla.PbLifeCycle;
 using PbLayla.Processing;
+using PbLayla.Processing.Dori;
 using PbLayla.Repositories;
 using PbLayla.Services;
+using DoriServiceOptions = PbLayla.Processing.Dori.DoriServiceOptions;
 
 namespace PbLayla;
 
@@ -60,6 +62,28 @@ internal class Program
 
                     return accountDataProviders;
                 });
+                services.AddSingleton<IDoriService, DoriService>();
+                services.AddOptions<DoriServiceOptions>().Configure(x =>
+                {
+                    x.Username = configuration.Dori.Username;
+                    x.Password = configuration.Dori.Password;
+                    x.Url = configuration.Dori.Url;
+                });
+                bool useDori = configuration.Accounts.Any(x => x.ManageDori);
+                if (useDori)
+                {
+                    services.AddHostedService<DoriBackgroundService>();
+                    services.AddOptions<DoriBackgroundServiceOptions>().Configure(x =>
+                    {
+                        x.ExecutionInterval = configuration.Dori.ExecutionInterval;
+                        x.ExecutionFailInterval = configuration.Dori.ExecutionFailInterval;
+                        x.Strategies = configuration.Accounts
+                            .Where(a => a.ManageDori)
+                            .Select(a => a.Name)
+                            .ToArray();
+                    });
+                }
+                    
                 services.AddLogging(options =>
                 {
                     options.AddSimpleConsole(o =>
@@ -133,7 +157,12 @@ internal class Program
             MaxHedgeReleaseAttemptsPeriod = account.MaxHedgeReleaseAttemptsPeriod,
             MaxUnstuckSymbols = account.MaxUnstuckSymbols,
             ManageHedges = account.ManageHedges,
-            ManagePbLifecycle = account.ManagePbLifecycle
+            ManagePbLifecycle = account.ManagePbLifecycle,
+            ManageDori = account.ManageDori,
+            InitialQtyPercent = account.InitialQtyPercent,
+            DoriConfig = account.DoriConfig,
+            CopyTrading = account.CopyTrading,
+            ManualHedgeSymbols = account.ManualHedgeSymbols
         });
         var fileHedgeRecordRepositoryOptions = new FileHedgeRecordRepositoryOptions
         {
@@ -141,6 +170,7 @@ internal class Program
             FileDirectory = account.ConfigsPath,
             MaxHistory = TimeSpan.FromDays(14)
         };
+        var doriService = services.GetRequiredService<IDoriService>();
         var fileHedgeRecordRepository = new FileHedgeRecordRepository(
             Options.Create(fileHedgeRecordRepositoryOptions), 
             lf.CreateLogger<FileHedgeRecordRepository>());
@@ -149,7 +179,8 @@ internal class Program
             pbFuturesRestClient,
             pbLifeCycleController,
             fileHedgeRecordRepository,
-            lf.CreateLogger<RiskMonitor>());
+            lf.CreateLogger<RiskMonitor>(),
+            doriService);
         return accountDataProvider;
     }
 }

@@ -8,6 +8,7 @@ using PbLayla.Helpers;
 using PbLayla.Model;
 using PbLayla.Model.PbConfig;
 using PbLayla.PbLifeCycle;
+using PbLayla.Processing.Dori;
 using PbLayla.Repositories;
 
 namespace PbLayla.Processing;
@@ -18,23 +19,30 @@ public class RiskMonitor : IRiskMonitor
     private readonly IOptions<RiskMonitorOptions> m_options;
     private readonly ILogger<RiskMonitor> m_logger;
     private readonly IHedgeRecordRepository m_hedgeRecordRepository;
+    private readonly IDoriService m_doriService;
     private PbMultiConfig? m_configTemplate;
     private Stopwatch? m_lastStateChangeCheck;
+    private Stopwatch? m_lastDoriStateChangeCheck;
     private readonly IPbLifeCycleController m_lifeCycleController;
     private string? m_currentConfig;
     private readonly HashSet<string> m_currentUnstuckingSymbols;
+    private readonly HashSet<string> m_manualHedgeSymbols;
 
     public RiskMonitor(IOptions<RiskMonitorOptions> options,
         IPbFuturesRestClient client,
         IPbLifeCycleController lifeCycleController,
         IHedgeRecordRepository hedgeRecordRepository,
-        ILogger<RiskMonitor> logger)
+        ILogger<RiskMonitor> logger, IDoriService doriService)
     {
         m_client = client;
         m_options = options;
         m_logger = logger;
+        m_doriService = doriService;
         m_hedgeRecordRepository = hedgeRecordRepository;
         m_lifeCycleController = lifeCycleController;
+        m_manualHedgeSymbols = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+        foreach (var valueManualHedgeSymbol in m_options.Value.ManualHedgeSymbols)
+            m_manualHedgeSymbols.Add(valueManualHedgeSymbol);
         bool validOptions = ValidateOptions();
         if (!validOptions)
             throw new ArgumentException("Invalid options");
@@ -91,6 +99,17 @@ public class RiskMonitor : IRiskMonitor
             if(riskModel.LongPositions.Count > 0)
                 positionSymbols = string.Join(',', riskModel.LongPositions.Values.Select(p => p.Position.Symbol));
             m_logger.LogInformation("{AccountName}: Maintaining risk for existing long positions: {Positions}", m_options.Value.AccountName, positionSymbols);
+
+            if (configTemplate != null && m_options.Value.ManageDori && riskModel.Balance.WalletBalance.HasValue)
+            {
+                bool changedDori = await ManageDoriStrategyAsync(cancel, configTemplate, riskModel);
+                if (changedDori)
+                {
+                    configTemplate = LoadConfigTemplate();
+                    riskModel = RiskMonitorHelpers.CalculateRiskModel(positions, tickers, balance, configTemplate, m_options.Value.StageOneTotalStuckExposure, m_logger);
+                }
+            }
+            
             await MaintainRiskAsync(riskModel, cancel);
         }
         catch (OperationCanceledException)
@@ -100,6 +119,79 @@ public class RiskMonitor : IRiskMonitor
         {
             m_logger.LogWarning(e, "{AccountName}: Error executing risk monitor", m_options.Value.AccountName);
         }
+    }
+
+    private async Task<bool> ManageDoriStrategyAsyncInner(CancellationToken cancel, PbMultiConfig configTemplate,
+        RiskModel riskModel)
+    {
+        if (!riskModel.Balance.WalletBalance.HasValue)
+        {
+            m_logger.LogWarning("{AccountName}: Wallet balance is not available", m_options.Value.AccountName);
+            return false;
+        }
+        var doriQuery = new DoriQuery
+        {
+            StrategyName = m_options.Value.AccountName,
+            TemplateConfig = configTemplate.Clone(),
+            InitialQtyPercent = m_options.Value.InitialQtyPercent,
+            WalletBalance = (double)riskModel.Balance.WalletBalance.Value,
+            CopyTrading = m_options.Value.CopyTrading
+        };
+        await m_doriService.UpdateDoriQueryAsync(doriQuery, cancel);
+
+        m_lastDoriStateChangeCheck ??= Stopwatch.StartNew();
+        if (m_lastDoriStateChangeCheck.Elapsed > m_options.Value.StateChangeCheckTime)
+        {
+            m_lastDoriStateChangeCheck.Restart();
+            var doriStrategy = await m_doriService.TryGetDoriStrategyAsync(m_options.Value.AccountName, cancel);
+            if (doriStrategy == null)
+                m_logger.LogWarning("{AccountName}: Dori strategy is not ready", m_options.Value.AccountName);
+            else
+            {
+                DateTime lastUpdate = doriStrategy.SymbolData
+                    .OrderBy(x => x.BackTestResult.EndDate)
+                    .Select(x => x.BackTestResult.EndDate)
+                    .FirstOrDefault();
+                double expectedTotalAdg = doriStrategy.TotalLongAdg;
+                m_logger.LogInformation("{AccountName}: Dori strategy is ready, last update {lastUpdate}, expected total adg {expectedTotalAdg}.", 
+                    m_options.Value.AccountName, lastUpdate, expectedTotalAdg);
+                string doriTemplate = configTemplate.UpdateDoriTemplateConfig(
+                    riskModel, 
+                    doriStrategy, 
+                    m_options.Value.AccountName,
+                    m_options.Value.UnstuckConfig,
+                    m_options.Value.DoriConfig,
+                    m_logger);
+                m_logger.LogInformation("{AccountName}: Dori template updated", m_options.Value.AccountName);
+                string previousTemplate = configTemplate.SerializeConfig();
+                if (string.Equals(previousTemplate, doriTemplate, StringComparison.Ordinal))
+                {
+                    m_logger.LogInformation("{AccountName}: Dori template is the same", m_options.Value.AccountName);
+                    return false;
+                }
+                await SaveDoriTemplateAsync(doriTemplate, cancel);
+                m_logger.LogInformation("{AccountName}: Dori template saved", m_options.Value.AccountName);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<bool> ManageDoriStrategyAsync(CancellationToken cancel, PbMultiConfig configTemplate, RiskModel riskModel)
+    {
+        try
+        {
+            return await ManageDoriStrategyAsyncInner(cancel, configTemplate, riskModel);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e)
+        {
+            m_logger.LogWarning(e, "{AccountName}: Error managing Dori strategy", m_options.Value.AccountName);
+        }
+        return false;
     }
 
     private async Task MaintainRiskAsync(RiskModel riskModel, CancellationToken cancel)
@@ -136,6 +228,8 @@ public class RiskMonitor : IRiskMonitor
     {
         foreach (var longPosition in riskModel.LongPositions.Values)
         {
+            if (m_manualHedgeSymbols.Contains(longPosition.Position.Symbol))
+                continue;
             if (m_currentUnstuckingSymbols.Contains(longPosition.Position.Symbol))
             {
                 await HedgePositionAsync(
@@ -208,9 +302,6 @@ public class RiskMonitor : IRiskMonitor
 
     private async Task MaintainExistingHedgeAsync(PositionRiskModel longPosition, CancellationToken cancel)
     {
-        if (longPosition.HedgePosition == null)
-            return;
-
         if (longPosition.Position.Quantity < longPosition.HedgePosition.Quantity)
         {
             // close part of the hedge
@@ -275,6 +366,8 @@ public class RiskMonitor : IRiskMonitor
                 m_logger.LogWarning("{AccountName}: Configs path does not exist", m_options.Value.AccountName);
                 return null;
             }
+            if (m_options.Value.ManageDori)
+                ApplyDoriTemplate();
             string configTemplatePath = Path.Combine(m_options.Value.ConfigsPath, m_options.Value.ConfigTemplateFileName);
             if (!File.Exists(configTemplatePath))
             {
@@ -291,6 +384,28 @@ public class RiskMonitor : IRiskMonitor
             m_logger.LogWarning(e, "{AccountName}: Error loading config template", m_options.Value.AccountName);
             return null;
         }
+    }
+
+    private async Task SaveDoriTemplateAsync(string doriTemplate, CancellationToken cancel)
+    {
+        string configTemplatePath = Path.Combine(m_options.Value.ConfigsPath, m_options.Value.ConfigTemplateFileName);
+        configTemplatePath += ".dori";
+        if (File.Exists(configTemplatePath))
+            File.Delete(configTemplatePath);
+        await File.WriteAllTextAsync(configTemplatePath, doriTemplate, cancel);
+        ApplyDoriTemplate();
+    }
+
+    private void ApplyDoriTemplate()
+    {
+        string configTemplatePath = Path.Combine(m_options.Value.ConfigsPath, m_options.Value.ConfigTemplateFileName);
+        string doriConfigTemplatePath = configTemplatePath + ".dori";
+        if (!File.Exists(doriConfigTemplatePath))
+            return;
+        if (File.Exists(configTemplatePath))
+            File.Delete(configTemplatePath);
+        File.Move(doriConfigTemplatePath, configTemplatePath);
+        m_configTemplate = null; // should be reloaded
     }
 
     private async Task EnsureNormalStateAsync(RiskModel riskModel, CancellationToken cancel)
@@ -375,18 +490,35 @@ public class RiskMonitor : IRiskMonitor
 
     private async Task StageOneStartExchangeAsync(CancellationToken cancel)
     {
-        if (!m_options.Value.DisableOthersWhileUnstucking)
-            return;
-        var orders = await m_client.GetOrdersAsync(cancel);
-        var buyOrders = orders
-            .Where(x => x.Side == OrderSide.Buy && x.PositionMode == PositionIdx.BuyHedgeMode)
-            .ToArray();
-        await m_client.CancelOrdersAsync(buyOrders, cancel);
+        await CancelBuyOrderAsync(cancel);
     }
 
-    private Task NormalStartExchangeAsync(CancellationToken cancel)
+    private async Task NormalStartExchangeAsync(CancellationToken cancel)
     {
-        return Task.CompletedTask;
+        await CancelBuyOrderAsync(cancel);
+    }
+
+    private async Task CancelBuyOrderAsync(CancellationToken cancel)
+    {
+        int retry = 3;
+        while (retry-- > 0)
+        {
+            try
+            {
+                var orders = await m_client.GetOrdersAsync(cancel);
+                var buyOrders = orders
+                    .Where(x => x.Side == OrderSide.Buy && x.PositionMode == PositionIdx.BuyHedgeMode)
+                    .ToArray();
+                await m_client.CancelOrdersAsync(buyOrders, cancel);
+                break;
+            }
+            catch (Exception e)
+            {
+                m_logger.LogWarning(e, "{AccountName}: Error cancelling buy orders", m_options.Value.AccountName);
+                await Task.Delay(1000, cancel);
+                m_logger.LogInformation("{AccountName}: Retrying cancelling buy orders", m_options.Value.AccountName);
+            }
+        }
     }
 
     private async Task EnsureStateAsync(RiskModel riskModel, AccountState expectedState, Func<PbMultiConfig, string> configTransformationFunc, Func<CancellationToken, Task> exchangeOperationsFunc, CancellationToken cancel)
@@ -520,6 +652,12 @@ public class RiskMonitor : IRiskMonitor
             if (!File.Exists(Path.Combine(options.ConfigsPath, options.UnstuckConfig)))
             {
                 m_logger.LogWarning("Unstuck config file does not exist {UnstuckConfig}", options.UnstuckConfig);
+                return false;
+            }
+
+            if (options.ManageDori && string.IsNullOrEmpty(options.DoriConfig))
+            {
+                m_logger.LogWarning("Dori config is not set");
                 return false;
             }
         }

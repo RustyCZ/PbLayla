@@ -20,10 +20,11 @@ services:
     - PBLAYLA_PbLayla__Accounts__0__StuckExposureRatio=0.95
     - PBLAYLA_PbLayla__Accounts__0__MinStuckTime=03:00:00
     - PBLAYLA_PbLayla__Accounts__0__StageOneTotalStuckExposure=1.0
-    - PBLAYLA_PbLayla__Accounts__0__StateChangeCheckTime=00:01:00
+    - PBLAYLA_PbLayla__Accounts__0__StateChangeCheckTime=00:05:00
     - PBLAYLA_PbLayla__Accounts__0__ConfigsPath=/app/configs
     - PBLAYLA_PbLayla__Accounts__0__OverExposeFilterFactor=1.1
     - PBLAYLA_PbLayla__Accounts__0__UnstuckConfig=unstuck.json
+    - PBLAYLA_PbLayla__Accounts__0__DoriConfig=
     - PBLAYLA_PbLayla__Accounts__0__UnstuckExposure=1.0
     - PBLAYLA_PbLayla__Accounts__0__DisableOthersWhileUnstucking=false
     - PBLAYLA_PbLayla__Accounts__0__PriceDistanceStuck=0.05
@@ -35,5 +36,11 @@ services:
     - PBLAYLA_PbLayla__Accounts__0__ManageHedges=true
     - PBLAYLA_PbLayla__Accounts__0__ManagePbLifecycle=true
     - PBLAYLA_PbLayla__Accounts__0__MaxUnstuckSymbols=1
+    - PBLAYLA_PbLayla__Accounts__0__ManageDori=false
+    - PBLAYLA_PbLayla__Accounts__0__InitialQtyPercent=0.01
+    - PBLAYLA_PbLayla__Accounts__0__CopyTrading=false
+    - PBLAYLA_PbLayla__Dori__Username=
+    - PBLAYLA_PbLayla__Dori__Password=
+    - PBLAYLA_PbLayla__Dori__Url=
     - PBLAYLA_PbLayla__Docker__MountConfigsPath=/home/passivbot/configs
     - PBLAYLA_PbLayla__Docker__MountApiKeysPath=/home/passivbot/api-keys.json

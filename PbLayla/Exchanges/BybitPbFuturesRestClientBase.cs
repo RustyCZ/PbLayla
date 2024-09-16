@@ -164,20 +164,39 @@ public abstract class BybitPbFuturesRestClientBase : IPbFuturesRestClient
 
     public async Task CancelOrdersAsync(Order[] orders, CancellationToken cancel = default)
     {
-        var cancelOrderRequests = new List<BybitCancelOrderRequest>();
+        bool success = true;
         foreach (var order in orders)
         {
-            cancelOrderRequests.Add(new BybitCancelOrderRequest
+            try
             {
-                Symbol = order.Symbol,
-                OrderId = order.OrderId
-            });
+                await CancelOrderInnerAsync(order, cancel);
+                await Task.Delay(100, cancel);
+            }
+            catch (InvalidOperationException)
+            {
+                success = false;
+            }
+        }
+        if (!success)
+            throw new InvalidOperationException("Failed to cancel orders");
+    }
+
+    protected async Task CancelOrderInnerAsync(Order order, CancellationToken cancel = default)
+    {
+        m_logger.LogInformation("Cancelling order {orderId}:{symbol}", order.OrderId, order.Symbol);
+        var cancelOrderRes = await m_bybitRestClient.V5Api.Trading.CancelOrderAsync(
+            category: m_category,
+            symbol: order.Symbol,
+            orderId: order.OrderId,
+            ct: cancel);
+        if (!cancelOrderRes.GetResultOrError(out _, out var error))
+        {
+            m_logger.LogWarning("Failed to cancel order {orderId}:{symbol}: {error}", order.OrderId, order.Symbol,
+                error);
+            throw new InvalidOperationException(error.Message);
         }
 
-        await m_bybitRestClient.V5Api.Trading.CancelMultipleOrdersAsync(
-            category: m_category,
-            orderRequests: cancelOrderRequests,
-            ct: cancel);
+        m_logger.LogInformation("Order {orderId}:{symbol} cancelled", order.OrderId, order.Symbol);
     }
 
     public async Task<Ticker[]> GetTickersAsync(CancellationToken cancel = default)
