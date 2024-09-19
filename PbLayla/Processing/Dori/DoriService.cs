@@ -35,10 +35,15 @@ public class DoriService : IDoriService
         // only normal and graceful stop symbols are counted, rest is for special manual purposes in template
         int maxSymbolCount = 0;
         double minAllowedExchangeLeverage = 10.0;
+        HashSet<string> ignoredSymbolSet = new HashSet<string>();
         foreach (var symbol in symbols)
         {
             if (symbol.LongMode ==TradeMode.Normal || symbol.LongMode == TradeMode.GracefulStop)
                 maxSymbolCount++;
+            else
+            {
+                ignoredSymbolSet.Add(symbol.Symbol);
+            }
             if (symbol.LeverageSetOnExchange.HasValue && symbol.LeverageSetOnExchange.Value > minAllowedExchangeLeverage)
                 minAllowedExchangeLeverage = symbol.LeverageSetOnExchange.Value;
         }
@@ -48,7 +53,8 @@ public class DoriService : IDoriService
         double walletBalancePerSymbol = query.WalletBalance * exposurePerSymbol;
         double initialOrderSize = walletBalancePerSymbol * query.InitialQtyPercent;
         bool filterCopyTradeEnabled = query.CopyTrading;
-        string formattedQuery = FormattableString.Invariant($"StrategyResults?strategyName={strategyName}&maxSymbolCount={maxSymbolCount}&minAllowedExchangeLeverage={minAllowedExchangeLeverage}&initialOrderSize={initialOrderSize}&filterCopyTradeEnabled={filterCopyTradeEnabled}");
+        string ignoredSymbols = string.Join(',', ignoredSymbolSet);
+        string formattedQuery = FormattableString.Invariant($"StrategyResults?strategyName={strategyName}&maxSymbolCount={maxSymbolCount}&minAllowedExchangeLeverage={minAllowedExchangeLeverage}&initialOrderSize={initialOrderSize}&filterCopyTradeEnabled={filterCopyTradeEnabled}&ignoredSymbols={ignoredSymbols}");
         using var client = new HttpClient();
         if (!string.IsNullOrEmpty(m_options.Value.Username) && !string.IsNullOrEmpty(m_options.Value.Password))
         {
