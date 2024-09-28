@@ -21,7 +21,7 @@ public class RiskModel
     public Balance Balance { get; }
     public bool IsOverStageOneTotalStuckExposure { get; }
 
-    public PositionRiskModel[] FilterStuckPositions(double positionStuckExposureRatio, TimeSpan minStuckTime, double priceDistanceStuck)
+    public PositionRiskModel[] FilterStuckPositions(double positionStuckExposureRatio, TimeSpan minStuckTime, double priceDistanceStuck, double overExposeFilterFactor)
     {
         if( ConfigTemplate == null)
             return [];
@@ -32,14 +32,14 @@ public class RiskModel
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var stuckPositions = LongPositions.Values
             .Where(x => maintainedSymbols.Contains(x.Position.Symbol) 
-                        && x.IsStuck(positionStuckExposureRatio, minStuckTime, IsOverStageOneTotalStuckExposure, priceDistanceStuck))
+                        && x.IsStuck(positionStuckExposureRatio, minStuckTime, IsOverStageOneTotalStuckExposure, priceDistanceStuck, overExposeFilterFactor))
             .ToArray();
         return stuckPositions;
     }
 
     public PositionRiskModel[] FilterOverExposedPositions(double positionStuckExposureRatio, TimeSpan minStuckTime, double priceDistanceStuck, double overExposeFilterFactor)
     {
-        var stuckPositions = FilterStuckPositions(positionStuckExposureRatio, minStuckTime, priceDistanceStuck);
+        var stuckPositions = FilterStuckPositions(positionStuckExposureRatio, minStuckTime, priceDistanceStuck, overExposeFilterFactor);
         var overExposedPositions = new List<PositionRiskModel>();
         foreach (var position in stuckPositions)
         {

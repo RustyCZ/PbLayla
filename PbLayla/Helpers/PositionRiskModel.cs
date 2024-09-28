@@ -29,12 +29,16 @@ public class PositionRiskModel
     /// Gets whether the position is stuck. Position is stuck if it is overexposed and has been stuck for a certain amount of time or price action is too far away from position price.
     /// </summary>
     /// <returns></returns>
-    public bool IsStuck(double positionStuckExposureRatio, TimeSpan minStuckTime, bool isOverStageOneTotalStuckExposure, double priceDistanceStuck)
+    public bool IsStuck(double positionStuckExposureRatio, TimeSpan minStuckTime, bool isOverStageOneTotalStuckExposure, double priceDistanceStuck, double overExposeFilterFactor)
     {
         if (PositionExposureRatio == null)
             return false;
-        if (PositionExposureRatio > 1.0)
-            return true; // If position is overexposed, it is stuck.
+        if (PositionExposureRatio > overExposeFilterFactor)
+        {
+            // If position is overexposed, it is stuck. We need to have some extra buffer for overexposed positions.
+            // Single fee from other symbol when coin is already at max exposure can cause the position to be stuck.
+            return true;
+        }
 
         var isOverExpectedPositionExposureRatio = PositionExposureRatio > positionStuckExposureRatio;
         var stuckTime = DateTime.UtcNow - Position.UpdateTime;

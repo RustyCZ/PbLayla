@@ -347,7 +347,8 @@ public class RiskMonitor : IRiskMonitor
         var stuckPositions = riskModel.FilterStuckPositions(
             m_options.Value.StuckExposureRatio,
             m_options.Value.MinStuckTime, 
-            m_options.Value.PriceDistanceStuck);
+            m_options.Value.PriceDistanceStuck,
+            m_options.Value.OverExposeFilterFactor);
         
         if (stuckPositions.Length > 0)
             return AccountState.StageOneStuck;
@@ -425,7 +426,8 @@ public class RiskMonitor : IRiskMonitor
         var stuckPositions = riskModel.FilterStuckPositions(
             m_options.Value.StuckExposureRatio,
             m_options.Value.MinStuckTime,
-            m_options.Value.PriceDistanceStuck);
+            m_options.Value.PriceDistanceStuck,
+            m_options.Value.OverExposeFilterFactor);
 
         // remove symbols that are not stuck anymore
         var symbolsNotStuckAnymore = m_currentUnstuckingSymbols
