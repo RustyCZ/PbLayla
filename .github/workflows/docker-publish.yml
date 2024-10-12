@@ -25,14 +25,14 @@ jobs:
 
       - name: Build and tag Docker image
         run: |
-          IMAGE_NAME=ghcr.io/${{ github.repository }}/pblayla
+          IMAGE_NAME=ghcr.io/rustycz/pblayla
           TAG=${{ github.ref_name }}
           docker build --file=./PbLayla/Dockerfile -t $IMAGE_NAME:$TAG .
           docker tag $IMAGE_NAME:$TAG $IMAGE_NAME:latest
 
       - name: Push Docker image
         run: |
-          IMAGE_NAME=ghcr.io/${{ github.repository }}/pblayla
+          IMAGE_NAME=ghcr.io/rustycz/pblayla
           TAG=${{ github.ref_name }}
           docker push $IMAGE_NAME:$TAG
           docker push $IMAGE_NAME:latest
