@@ -13,4 +13,6 @@ public interface IPbFuturesRestClient
     Task<bool> PlaceMarketSellHedgeOrderAsync(string symbol, decimal quantity, CancellationToken cancel = default);
     Task<bool> ReduceSellHedgeAsync(string symbol, decimal quantity,
         CancellationToken cancel = default);
+    Task<TransactionLog[]> GetTransactionLogsAsync(DateTime start, DateTime end, CancellationToken cancel = default);
+    Task TransferProfitAsync(decimal quantity, string? fromMemberId, string? toMemberId, CancellationToken cancel);
 }

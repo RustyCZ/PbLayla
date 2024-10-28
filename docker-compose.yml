@@ -39,8 +39,15 @@ services:
     - PBLAYLA_PbLayla__Accounts__0__ManageDori=false
     - PBLAYLA_PbLayla__Accounts__0__InitialQtyPercent=0.01
     - PBLAYLA_PbLayla__Accounts__0__CopyTrading=false
+    - PBLAYLA_PbLayla__Accounts__0__EnableProfitTransfer=false
+    - PBLAYLA_PbLayla__Accounts__0__TransferProfitRatio=0.25
+    - PBLAYLA_PbLayla__Accounts__0__TransferProfitFrom=
+    - PBLAYLA_PbLayla__Accounts__0__TransferProfitTo=
+    - PBLAYLA_PbLayla__Accounts__0__TransferProfitLookBack=3.00:00:00
+    - PBLAYLA_PbLayla__Accounts__0__TransferProfitLogHistory=30.00:00:00
     - PBLAYLA_PbLayla__Dori__Username=
     - PBLAYLA_PbLayla__Dori__Password=
     - PBLAYLA_PbLayla__Dori__Url=
+    - PBLAYLA_PbLayla__TransferProfit__ExecutionInterval=08:00:00
     - PBLAYLA_PbLayla__Docker__MountConfigsPath=/home/passivbot/configs
     - PBLAYLA_PbLayla__Docker__MountApiKeysPath=/home/passivbot/api-keys.json

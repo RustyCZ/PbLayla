@@ -1,4 +1,6 @@
-﻿using Bybit.Net.Enums;
+﻿using System.Text.Json;
+using Bybit.Net.Clients;
+using Bybit.Net.Enums;
 using Bybit.Net.Interfaces.Clients;
 using Bybit.Net.Objects.Models.V5;
 using Microsoft.Extensions.Logging;
@@ -272,5 +274,70 @@ public abstract class BybitPbFuturesRestClientBase : IPbFuturesRestClient
             return false;
 
         return true;
+    }
+
+    public virtual async Task<TransactionLog[]> GetTransactionLogsAsync(DateTime start, DateTime end, CancellationToken cancel = default)
+    {
+        var bybitTransactionLogs = new List<BybitTransactionLog>();
+        string? cursor = null;
+        while (true)
+        {
+            var result = await m_bybitRestClient.V5Api.Account.GetTransactionHistoryAsync(
+                AccountType.Unified,
+                Category.Linear,
+                Assets.QuoteAsset,
+                null,
+                null,
+                start,
+                end,
+                50,
+                cursor,
+                cancel);
+            if (!result.GetResultOrError(out var data, out var error))
+                throw new InvalidOperationException(error.Message);
+            bybitTransactionLogs.AddRange(data.List);
+            if (string.IsNullOrWhiteSpace(data.NextPageCursor))
+                break;
+            cursor = data.NextPageCursor;
+            await Task.Delay(100, cancel);
+        }
+        var transactionLogs = bybitTransactionLogs.Select(x => x.ToTransactionLog()).ToArray();
+        return transactionLogs;
+    }
+
+    public async Task TransferProfitAsync(decimal quantity, string? fromMemberId, string? toMemberId, CancellationToken cancel)
+    {
+        if (!string.IsNullOrEmpty(fromMemberId) && !string.IsNullOrEmpty(toMemberId) && !string.Equals(fromMemberId, toMemberId))
+        {
+            // transfer between sub/main account
+            var result = await m_bybitRestClient.V5Api.Account.CreateUniversalTransferAsync(Assets.QuoteAsset,
+                quantity,
+                fromMemberId,
+                toMemberId,
+                AccountType.Unified,
+                AccountType.Fund,
+                null,
+                cancel);
+            if (!result.GetResultOrError(out _, out var e))
+            {
+                m_logger.LogWarning("Failed to transfer profit: {error}", e.Message);
+                throw new InvalidOperationException(e.Message);
+            }
+        }
+        else
+        {
+            // internal transfer
+            var result =await m_bybitRestClient.V5Api.Account.CreateInternalTransferAsync(Assets.QuoteAsset,
+                quantity,
+                AccountType.Unified,
+                AccountType.Fund,
+                null,
+                cancel);
+            if (!result.GetResultOrError(out _, out var e))
+            {
+                m_logger.LogWarning("Failed to transfer profit: {error}", e.Message);
+                throw new InvalidOperationException(e.Message);
+            }
+        }
     }
 }

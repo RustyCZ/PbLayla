@@ -6,5 +6,6 @@
         public RiskMonitorConfig RiskMonitor { get; set; } = new RiskMonitorConfig();
         public PbDocker Docker { get; set; } = new PbDocker();
         public Dori Dori { get; set; } = new Dori();
+        public TransferProfitConfig TransferProfit { get; set; } = new TransferProfitConfig();
     }
 }

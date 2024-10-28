@@ -1,4 +1,9 @@
 ﻿using PbLayla.Model;
+using OrderSide = PbLayla.Model.OrderSide;
+using OrderStatus = PbLayla.Model.OrderStatus;
+using PositionSide = PbLayla.Model.PositionSide;
+using TradeMode = PbLayla.Model.TradeMode;
+using TradeType = PbLayla.Model.TradeType;
 
 namespace PbLayla.Mapping
 {
@@ -13,7 +18,7 @@ namespace PbLayla.Mapping
                 balance.RealizedPnl);
         }
 
-        public static Position? ToPosition(this Bybit.Net.Objects.Models.V5.BybitPosition value)
+        public static Position ToPosition(this Bybit.Net.Objects.Models.V5.BybitPosition value)
         {
             var position = new Position
             {
@@ -175,6 +180,45 @@ namespace PbLayla.Mapping
                     return OrderStatus.Active;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value), value, null);
+            }
+        }
+
+        public static TransactionLog ToTransactionLog(this Bybit.Net.Objects.Models.V5.BybitTransactionLog value)
+        {
+            return new TransactionLog
+            {
+                Symbol = value.Symbol,
+                Id = value.Id,
+                Change = value.Change,
+                CashBalance = value.CashBalance,
+                CashFlow = value.Cashflow,
+                Fee = value.Fee,
+                Funding = value.Funding,
+                TransactionTime = value.TransactionTime,
+                TransactionType = value.Type.ToTransactionType()
+            };
+        }
+
+        public static TransactionType ToTransactionType(this Bybit.Net.Enums.TransactionLogType value)
+        {
+            switch (value)
+            {
+                case Bybit.Net.Enums.TransactionLogType.TransferIn:
+                    return TransactionType.TransferIn;
+                case Bybit.Net.Enums.TransactionLogType.TransferOut:
+                    return TransactionType.TransferOut;
+                case Bybit.Net.Enums.TransactionLogType.Trade:
+                    return TransactionType.Trade;
+                case Bybit.Net.Enums.TransactionLogType.Settlement:
+                    return TransactionType.Settlement;
+                case Bybit.Net.Enums.TransactionLogType.Delivery:
+                    return TransactionType.Delivery;
+                case Bybit.Net.Enums.TransactionLogType.Liquidation:
+                    return TransactionType.Liquidation;
+                case Bybit.Net.Enums.TransactionLogType.Adl:
+                    return TransactionType.Adl;
+                default:
+                    return TransactionType.Unknown;
             }
         }
     }

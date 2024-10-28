@@ -102,6 +102,24 @@ Only PriceDistanceStuck, PriceDistanceCloseHedge, MaxHedgeReleaseAttemptsPeriod 
 - PBLAYLA_PbLayla__Accounts__0__ManagePbLifecycle
   - set to true to enable PB docker lifecycle managing including unstucking
 
+  # Transfer profit configuration
+  It is possible to setup profit transfer from unified trading wallet to funding wallet.
+  
+- PBLAYLA_PbLayla__Accounts__0__EnableProfitTransfer
+  - set to true to enable profit transfer
+- PBLAYLA_PbLayla__Accounts__0__TransferProfitRatio
+  - How much of the profit in percent from trading should be transferred. For example 0.25 means 25% of the profit will be moved to funding wallet.
+- PBLAYLA_PbLayla__Accounts__0__TransferProfitFrom
+  - UID of subaccount to transfer from (leave blank for internal account transfer from unified to funding)
+- PBLAYLA_PbLayla__Accounts__0__TransferProfitTo
+  - UID of subaccount to transfer to (leave blank for internal account transfer from unified to funding)
+- PBLAYLA_PbLayla__Accounts__0__TransferProfitLookBack
+  - Lookback period for trading logs, it should not be greater than 7 days. Processed logs are saved so they are not processed again
+- PBLAYLA_PbLayla__Accounts__0__TransferProfitLogHistory
+  - Specifies how long to keep transaction logs in processed history. It should be greater than TransferProfitLookBack
+- PBLAYLA_PbLayla__TransferProfit__ExecutionInterval
+  - Specifies how often tool should query new trading logs and transfer new profits
+
   # Limitations
 - Risk management only for long positions (it uses short to hedge it)
 - Bybit Exchange

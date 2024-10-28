@@ -62,6 +62,21 @@ internal class Program
 
                     return accountDataProviders;
                 });
+                services.AddSingleton<IEnumerable<ITransferProfit>>(sp =>
+                {
+                    List<ITransferProfit> transferProfits = new List<ITransferProfit>();
+                    foreach (var account in configuration.Accounts)
+                    {
+                        if (string.IsNullOrWhiteSpace(account.ApiKey) || string.IsNullOrWhiteSpace(account.ApiSecret))
+                            continue;
+                        if (!account.EnableProfitTransfer)
+                            continue;
+                        var transferProfit = CreateBybitTransferProfit(account, sp);
+                        transferProfits.Add(transferProfit);
+                    }
+
+                    return transferProfits;
+                });
                 services.AddSingleton<IDoriService, DoriService>();
                 services.AddOptions<DoriServiceOptions>().Configure(x =>
                 {
@@ -81,6 +96,16 @@ internal class Program
                             .Where(a => a.ManageDori)
                             .Select(a => a.Name)
                             .ToArray();
+                    });
+                }
+
+                bool useTransferProfit = configuration.Accounts.Any(x => x.EnableProfitTransfer);
+                if (useTransferProfit)
+                {
+                    services.AddHostedService<TransferProfitService>();
+                    services.AddOptions<TransferProfitServiceOptions>().Configure(x =>
+                    {
+                        x.ExecutionInterval = configuration.TransferProfit.ExecutionInterval;
                     });
                 }
                     
@@ -114,26 +139,7 @@ internal class Program
 
     private static RiskMonitor CreateBybitRiskMonitor(Account account, IServiceProvider services)
     {
-        BybitRestClient client = new BybitRestClient(options =>
-        {
-            options.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
-            options.V5Options.ApiCredentials = new ApiCredentials(account.ApiKey, account.ApiSecret);
-            options.ReceiveWindow = TimeSpan.FromSeconds(10);
-            options.AutoTimestamp = true;
-            options.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
-        });
-        
-        IPbFuturesRestClient pbFuturesRestClient;
-        if (account.IsUnified)
-        {
-            var logger = services.GetRequiredService<ILogger<BybitPbUnifiedFuturesRestClient>>();
-            pbFuturesRestClient = new BybitPbUnifiedFuturesRestClient(client, logger);
-        }
-        else
-        {
-            var logger = services.GetRequiredService<ILogger<BybitPbStandardFuturesRestClient>>();
-            pbFuturesRestClient = new BybitPbStandardFuturesRestClient(client, logger);
-        }
+        var pbFuturesRestClient = CreateBybitRestClient(account, services);
         var lf = services.GetRequiredService<ILoggerFactory>();
         var pbLifeCycleController = services.GetRequiredService<IPbLifeCycleController>();
         var monitorOptions = Options.Create(new RiskMonitorOptions()
@@ -182,5 +188,58 @@ internal class Program
             lf.CreateLogger<RiskMonitor>(),
             doriService);
         return accountDataProvider;
+    }
+
+    private static TransferProfit CreateBybitTransferProfit(Account account, IServiceProvider services)
+    {
+        var transferProfitRepositoryOptions = new FileProfitTransferRepositoryOptions
+        {
+            AccountName = account.Name,
+            FileDirectory = account.ConfigsPath,
+            MaxTransactionLogsHistory = account.TransferProfitLogHistory,
+        };
+        var transferProfitRepository = new FileProfitTransferRepository(
+            Options.Create(transferProfitRepositoryOptions),
+            services.GetRequiredService<ILogger<FileProfitTransferRepository>>());
+        var transferProfitOptions = new TransferProfitOptions
+        {
+            AccountName = account.Name,
+            TransferProfitTo = account.TransferProfitTo,
+            TransferProfitFrom = account.TransferProfitFrom,
+            TransferProfitRatio = account.TransferProfitRatio,
+            MaxLookBack = account.TransferProfitLookBack,
+        };
+        var pbFuturesRestClient = CreateBybitRestClient(account, services);
+        var logger = services.GetRequiredService<ILogger<TransferProfit>>();
+        var transferProfit = new TransferProfit(
+            Options.Create(transferProfitOptions),
+            pbFuturesRestClient,
+            transferProfitRepository,
+            logger);
+        return transferProfit;
+    }
+
+    private static IPbFuturesRestClient CreateBybitRestClient(Account account, IServiceProvider services)
+    {
+        BybitRestClient client = new BybitRestClient(options =>
+        {
+            options.RateLimitingBehaviour = RateLimitingBehaviour.Wait;
+            options.V5Options.ApiCredentials = new ApiCredentials(account.ApiKey, account.ApiSecret);
+            options.ReceiveWindow = TimeSpan.FromSeconds(10);
+            options.AutoTimestamp = true;
+            options.TimestampRecalculationInterval = TimeSpan.FromSeconds(10);
+        });
+        IPbFuturesRestClient pbFuturesRestClient;
+        if (account.IsUnified)
+        {
+            var logger = services.GetRequiredService<ILogger<BybitPbUnifiedFuturesRestClient>>();
+            pbFuturesRestClient = new BybitPbUnifiedFuturesRestClient(client, logger);
+        }
+        else
+        {
+            var logger = services.GetRequiredService<ILogger<BybitPbStandardFuturesRestClient>>();
+            pbFuturesRestClient = new BybitPbStandardFuturesRestClient(client, logger);
+        }
+        return pbFuturesRestClient;
     }
 }

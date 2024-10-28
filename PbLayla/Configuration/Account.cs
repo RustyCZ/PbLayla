@@ -34,5 +34,11 @@
         public double InitialQtyPercent { get; set; } = 0.01;
         public bool CopyTrading { get; set; }
         public string[] ManualHedgeSymbols { get; set; } = [];
+        public bool EnableProfitTransfer { get; set; }
+        public decimal TransferProfitRatio { get; set; } = 0.25m;
+        public string TransferProfitFrom { get; set; } = string.Empty;
+        public string TransferProfitTo { get; set; } = string.Empty;
+        public TimeSpan TransferProfitLookBack { get; set; } = TimeSpan.FromDays(3);
+        public TimeSpan TransferProfitLogHistory { get; set; } = TimeSpan.FromDays(30);
     }
 }

@@ -3,6 +3,7 @@ using Bybit.Net.Interfaces.Clients;
 using Microsoft.Extensions.Logging;
 using PbLayla.Helpers;
 using PbLayla.Mapping;
+using PbLayla.Model;
 using Balance = PbLayla.Model.Balance;
 
 namespace PbLayla.Exchanges;
@@ -45,5 +46,10 @@ public class BybitPbStandardFuturesRestClient : BybitPbFuturesRestClientBase
         }
 
         return new Balance();
+    }
+
+    public override Task<TransactionLog[]> GetTransactionLogsAsync(DateTime start, DateTime end, CancellationToken cancel = default)
+    {
+        throw new NotSupportedException("Transaction log is not supported with standard account");
     }
 }
