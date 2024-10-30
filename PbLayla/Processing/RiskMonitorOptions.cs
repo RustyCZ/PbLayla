@@ -1,4 +1,6 @@
-﻿namespace PbLayla.Processing;
+﻿using PbLayla.Configuration;
+
+namespace PbLayla.Processing;
 
 public class RiskMonitorOptions
 {
@@ -51,4 +53,6 @@ public class RiskMonitorOptions
     public bool CopyTrading { get; set; }
 
     public string[] ManualHedgeSymbols { get; set; } = [];
+
+    public PbVersion PbVersion { get; set; } = PbVersion.V610;
 }

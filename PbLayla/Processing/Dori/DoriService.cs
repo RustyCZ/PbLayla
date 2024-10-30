@@ -31,7 +31,7 @@ public class DoriService : IDoriService
     {
         if(!m_queries.TryGetValue(strategyName, out var query))
             return false;
-        var symbols = query.TemplateConfig.Symbols.ParseSymbols();
+        var symbols = query.TemplateConfig.ParseSymbols();
         // only normal and graceful stop symbols are counted, rest is for special manual purposes in template
         int maxSymbolCount = 0;
         double minAllowedExchangeLeverage = 10.0;
@@ -48,7 +48,7 @@ public class DoriService : IDoriService
                 minAllowedExchangeLeverage = symbol.LeverageSetOnExchange.Value;
         }
 
-        double totalExposureLong = query.TemplateConfig.TweLong;
+        double totalExposureLong = query.TemplateConfig.GetTweLong();
         double exposurePerSymbol = totalExposureLong / maxSymbolCount;
         double walletBalancePerSymbol = query.WalletBalance * exposurePerSymbol;
         double initialOrderSize = walletBalancePerSymbol * query.InitialQtyPercent;

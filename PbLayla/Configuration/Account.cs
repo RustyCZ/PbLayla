@@ -40,5 +40,6 @@
         public string TransferProfitTo { get; set; } = string.Empty;
         public TimeSpan TransferProfitLookBack { get; set; } = TimeSpan.FromDays(3);
         public TimeSpan TransferProfitLogHistory { get; set; } = TimeSpan.FromDays(30);
+        public PbVersion PbVersion { get; set; } = PbVersion.V610;
     }
 }

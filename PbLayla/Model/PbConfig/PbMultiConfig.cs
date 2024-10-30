@@ -1,8 +1,10 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+using Hjson;
 
 namespace PbLayla.Model.PbConfig;
 
-public class PbMultiConfig
+public class PbMultiConfig : IPbMultiConfig
 {
     [JsonPropertyName("user")]
     public string? User { get; set; }
@@ -43,7 +45,7 @@ public class PbMultiConfig
     [JsonPropertyName("default_config_path")] 
     public string DefaultConfigPath { get; set; } = string.Empty;
 
-    public PbMultiConfig Clone()
+    public IPbMultiConfig Clone()
     {
         return new PbMultiConfig
         {
@@ -61,5 +63,36 @@ public class PbMultiConfig
             LiveConfigsDir = LiveConfigsDir,
             DefaultConfigPath = DefaultConfigPath
         };
+    }
+
+    public string SerializeConfig()
+    {
+        string jsonString = JsonSerializer.Serialize(this, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        });
+        JsonValue v = JsonValue.Parse(jsonString);
+        var serializedConfig = v.ToString(Stringify.Hjson);
+        return serializedConfig;
+    }
+
+    public void UpdateSymbols(SymbolOptions[] symbols)
+    {
+        Symbols.UpdateSymbols(symbols);
+    }
+
+    public double GetTweLong()
+    {
+        return TweLong;
+    }
+
+    public SymbolOptions[] ParseSymbols()
+    {
+        return Symbols.ParseSymbols();
+    }
+
+    public int GetSymbolCount()
+    {
+        return Symbols.Count;
     }
 }

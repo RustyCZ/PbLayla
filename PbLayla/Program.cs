@@ -168,7 +168,8 @@ internal class Program
             InitialQtyPercent = account.InitialQtyPercent,
             DoriConfig = account.DoriConfig,
             CopyTrading = account.CopyTrading,
-            ManualHedgeSymbols = account.ManualHedgeSymbols
+            ManualHedgeSymbols = account.ManualHedgeSymbols,
+            PbVersion = account.PbVersion
         });
         var fileHedgeRecordRepositoryOptions = new FileHedgeRecordRepositoryOptions
         {

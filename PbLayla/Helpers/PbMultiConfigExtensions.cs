@@ -8,17 +8,17 @@ namespace PbLayla.Helpers;
 
 public static class PbMultiConfigExtensions
 {
-    public static string GenerateNormalConfig(this PbMultiConfig template)
+    public static string GenerateNormalConfig(this IPbMultiConfig template)
     {
         var config = template.Clone();
         var serializedConfig = config.SerializeConfig();
         return serializedConfig;
     }
 
-    public static string GenerateUnstuckConfig(this PbMultiConfig template, HashSet<string> symbolsToUnstuck, string unstuckConfig, double unstuckExposure, bool disableOthers)
+    public static string GenerateUnstuckConfig(this IPbMultiConfig template, HashSet<string> symbolsToUnstuck, string unstuckConfig, double unstuckExposure, bool disableOthers)
     {
         var config = template.Clone();
-        var symbols = config.Symbols.ParseSymbols();
+        var symbols = config.ParseSymbols();
         var foundSymbols = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
         foreach (var symbolConfig in symbols)
         {
@@ -53,24 +53,13 @@ public static class PbMultiConfigExtensions
             }
         }
 
-        config.Symbols.UpdateSymbols(symbols);
+        config.UpdateSymbols(symbols);
 
         var serializedConfig = config.SerializeConfig();
         return serializedConfig;
     }
 
-    public static string SerializeConfig(this PbMultiConfig config)
-    {
-        string jsonString = JsonSerializer.Serialize(config, new JsonSerializerOptions
-        {
-            WriteIndented = true,
-        });
-        JsonValue v = JsonValue.Parse(jsonString);
-        var serializedConfig = v.ToString(Stringify.Hjson);
-        return serializedConfig;
-    }
-
-    public static string UpdateDoriTemplateConfig(this PbMultiConfig template, 
+    public static string UpdateDoriTemplateConfig(this IPbMultiConfig template, 
         RiskModel riskModel,
         StrategyApiResult strategyResult, 
         string accountName,
@@ -93,7 +82,7 @@ public static class PbMultiConfigExtensions
         // if there is no more replaceable symbols break
 
         var config = template.Clone();
-        var symbols = config.Symbols.ParseSymbols();
+        var symbols = config.ParseSymbols();
         List<SymbolOptions> finalSymbols = new List<SymbolOptions>();
         HashSet<string> desiredSymbols = new HashSet<string>(strategyResult.SymbolData.Select(s => s.Symbol), StringComparer.InvariantCultureIgnoreCase);
         HashSet<string> openPositions = new HashSet<string>(riskModel.LongPositions.Keys, StringComparer.InvariantCultureIgnoreCase);
@@ -193,7 +182,7 @@ public static class PbMultiConfigExtensions
                 break;
         }
 
-        config.Symbols.UpdateSymbols(finalSymbols.ToArray());
+        config.UpdateSymbols(finalSymbols.ToArray());
         var serializedConfig = config.SerializeConfig();
         return serializedConfig;
     }

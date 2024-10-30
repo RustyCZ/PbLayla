@@ -3,6 +3,7 @@ using System.Text.Json;
 using Hjson;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PbLayla.Configuration;
 using PbLayla.Exchanges;
 using PbLayla.Helpers;
 using PbLayla.Model;
@@ -20,7 +21,7 @@ public class RiskMonitor : IRiskMonitor
     private readonly ILogger<RiskMonitor> m_logger;
     private readonly IHedgeRecordRepository m_hedgeRecordRepository;
     private readonly IDoriService m_doriService;
-    private PbMultiConfig? m_configTemplate;
+    private IPbMultiConfig? m_configTemplate;
     private Stopwatch? m_lastStateChangeCheck;
     private Stopwatch? m_lastDoriStateChangeCheck;
     private readonly IPbLifeCycleController m_lifeCycleController;
@@ -61,7 +62,7 @@ public class RiskMonitor : IRiskMonitor
             m_options.Value.AccountName);
         try
         {
-            PbMultiConfig? configTemplate = null;
+            IPbMultiConfig? configTemplate = null;
             if (m_options.Value.ManagePbLifecycle)
             {
                 configTemplate = LoadConfigTemplate();
@@ -71,7 +72,7 @@ public class RiskMonitor : IRiskMonitor
                     return;
                 }
 
-                if (configTemplate.Symbols.Count == 0)
+                if (configTemplate.GetSymbolCount() == 0)
                 {
                     m_logger.LogWarning("{AccountName}: Config template has no symbols", m_options.Value.AccountName);
                     return;
@@ -121,7 +122,7 @@ public class RiskMonitor : IRiskMonitor
         }
     }
 
-    private async Task<bool> ManageDoriStrategyAsyncInner(CancellationToken cancel, PbMultiConfig configTemplate,
+    private async Task<bool> ManageDoriStrategyAsyncInner(CancellationToken cancel, IPbMultiConfig configTemplate,
         RiskModel riskModel)
     {
         if (!riskModel.Balance.WalletBalance.HasValue)
@@ -178,7 +179,7 @@ public class RiskMonitor : IRiskMonitor
         return false;
     }
 
-    private async Task<bool> ManageDoriStrategyAsync(CancellationToken cancel, PbMultiConfig configTemplate, RiskModel riskModel)
+    private async Task<bool> ManageDoriStrategyAsync(CancellationToken cancel, IPbMultiConfig configTemplate, RiskModel riskModel)
     {
         try
         {
@@ -356,7 +357,7 @@ public class RiskMonitor : IRiskMonitor
         return AccountState.Normal;
     }
 
-    private PbMultiConfig? LoadConfigTemplate()
+    private IPbMultiConfig? LoadConfigTemplate()
     {
         try
         {
@@ -375,8 +376,20 @@ public class RiskMonitor : IRiskMonitor
                 m_logger.LogWarning("{AccountName}: Config template file does not exist", m_options.Value.AccountName);
                 return null;
             }
+
             var jsonString = HjsonValue.Load(configTemplatePath).ToString();
-            var config = JsonSerializer.Deserialize<PbMultiConfig>(jsonString);
+            IPbMultiConfig? config;
+            switch (m_options.Value.PbVersion)
+            {
+                case PbVersion.V610:
+                    config = JsonSerializer.Deserialize<PbMultiConfig>(jsonString);
+                    break;
+                case PbVersion.V614:
+                    config = JsonSerializer.Deserialize<PbMultiConfigV614>(jsonString);
+                    break;
+                default: 
+                    throw new NotSupportedException($"PB version {m_options.Value.PbVersion} is not supported");
+            }
             m_configTemplate = config;
             return config;
         }
@@ -523,7 +536,7 @@ public class RiskMonitor : IRiskMonitor
         }
     }
 
-    private async Task EnsureStateAsync(RiskModel riskModel, AccountState expectedState, Func<PbMultiConfig, string> configTransformationFunc, Func<CancellationToken, Task> exchangeOperationsFunc, CancellationToken cancel)
+    private async Task EnsureStateAsync(RiskModel riskModel, AccountState expectedState, Func<IPbMultiConfig, string> configTransformationFunc, Func<CancellationToken, Task> exchangeOperationsFunc, CancellationToken cancel)
     {
         // check if enough time has passed since last state change, we don't want to query and restart docker too often
         if (!IsStateChangeCheckTimeElapsed())

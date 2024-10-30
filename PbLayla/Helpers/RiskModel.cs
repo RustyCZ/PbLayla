@@ -6,7 +6,7 @@ namespace PbLayla.Helpers;
 
 public class RiskModel
 {
-    public RiskModel(Balance balance, bool isOverStageOneTotalStuckExposure, PbMultiConfig? configTemplate)
+    public RiskModel(Balance balance, bool isOverStageOneTotalStuckExposure, IPbMultiConfig? configTemplate)
     {
         Balance = balance;
         IsOverStageOneTotalStuckExposure = isOverStageOneTotalStuckExposure;
@@ -17,7 +17,7 @@ public class RiskModel
 
     public Dictionary<string, PositionRiskModel> LongPositions { get; }
     public Dictionary<string, Position> NakedShorts { get; }
-    public PbMultiConfig? ConfigTemplate { get; }
+    public IPbMultiConfig? ConfigTemplate { get; }
     public Balance Balance { get; }
     public bool IsOverStageOneTotalStuckExposure { get; }
 
@@ -25,7 +25,7 @@ public class RiskModel
     {
         if( ConfigTemplate == null)
             return [];
-        var configSymbols = ConfigTemplate.Symbols.ParseSymbols();
+        var configSymbols = ConfigTemplate.ParseSymbols();
         var maintainedSymbols = configSymbols
             .Where(x => x.LongMode == TradeMode.Normal || x.LongMode == TradeMode.GracefulStop)
             .Select(x => x.Symbol)

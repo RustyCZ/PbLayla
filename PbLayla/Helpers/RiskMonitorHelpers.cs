@@ -48,49 +48,6 @@ public static class RiskMonitorHelpers
         return priceDistance;
     }
 
-    public static Position[] FilterStuckPositions(Position[] positions, 
-        Balance balance, 
-        PbMultiConfig configTemplate, 
-        double totalStuckExposure,
-        double positionStuckExposureRatio,
-        TimeSpan minStuckTime)
-    {
-        var stuckPositions = new List<Position>();
-        var expectedMaxPositionExposure = configTemplate.TweLong / configTemplate.Symbols.Count;
-        var totalExposure = CalculateTotalExposureRatio(positions, balance);
-        var isOverStageOneTotalStuckExposure = totalExposure > totalStuckExposure;
-        foreach (var position in positions)
-        {
-            var positionExposureRatio = CalculatePositionExposureRatio(position, balance, expectedMaxPositionExposure);
-            var isOverExpectedPositionExposureRatio = positionExposureRatio > positionStuckExposureRatio;
-            var stuckTime = DateTime.UtcNow - position.CreateTime;
-            var isMinTimeStuck = stuckTime > minStuckTime;
-            var canBeAssumedStuck = isOverStageOneTotalStuckExposure || isMinTimeStuck;
-            if (isOverExpectedPositionExposureRatio && canBeAssumedStuck)
-            {
-                stuckPositions.Add(position);
-            }
-        }
-
-        return stuckPositions.ToArray();
-    }
-
-    public static Position[] FilterOverExposedPositions(Position[] positions, Balance balance, PbMultiConfig configTemplate, double overExposeFilterFactor)
-    {
-        var expectedMaxPositionExposure = configTemplate.TweLong / configTemplate.Symbols.Count;
-        var overExposedPositions = new List<Position>();
-        foreach (var position in positions)
-        {
-            var positionExposureRatio = CalculatePositionExposureRatio(position, balance, expectedMaxPositionExposure);
-            if (positionExposureRatio > overExposeFilterFactor)
-            {
-                overExposedPositions.Add(position);
-            }
-        }
-
-        return overExposedPositions.ToArray();
-    }
-
     public static PositionExposure[] CalculatePositionExposures(Position[] positions, Balance balance)
     {
         var positionExposures = new List<PositionExposure>();
@@ -106,7 +63,7 @@ public static class RiskMonitorHelpers
     public static PositionRiskModel CalculatePositionRiskModel(Position position, 
         Ticker ticker, 
         Balance balance, 
-        PbMultiConfig? configTemplate, 
+        IPbMultiConfig? configTemplate, 
         Position? hedgePosition)
     {
         var priceDistance = CalculatePriceDistance(position, ticker);
@@ -114,7 +71,7 @@ public static class RiskMonitorHelpers
         double? positionExposureRatio = null;
         if (configTemplate != null)
         {
-            var expectedMaxPositionExposure = configTemplate.TweLong / configTemplate.Symbols.Count;
+            var expectedMaxPositionExposure = configTemplate.GetTweLong() / configTemplate.GetSymbolCount();
             positionExposureRatio = CalculatePositionExposureRatio(position, balance, expectedMaxPositionExposure);
         }
         
@@ -125,7 +82,7 @@ public static class RiskMonitorHelpers
     public static RiskModel CalculateRiskModel(Position[] positions, 
         Ticker[] tickers, 
         Balance balance, 
-        PbMultiConfig? configTemplate,
+        IPbMultiConfig? configTemplate,
         double stageOneTotalStuckExposure,
         ILogger logger)
     {

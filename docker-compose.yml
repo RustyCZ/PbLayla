@@ -45,6 +45,7 @@ services:
     - PBLAYLA_PbLayla__Accounts__0__TransferProfitTo=
     - PBLAYLA_PbLayla__Accounts__0__TransferProfitLookBack=3.00:00:00
     - PBLAYLA_PbLayla__Accounts__0__TransferProfitLogHistory=30.00:00:00
+    - PBLAYLA_PbLayla__Accounts__0__PbVersion=V610
     - PBLAYLA_PbLayla__Dori__Username=
     - PBLAYLA_PbLayla__Dori__Password=
     - PBLAYLA_PbLayla__Dori__Url=
