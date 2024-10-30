@@ -33,6 +33,9 @@ public class PbMultiConfigV614 : IPbMultiConfig
     [JsonPropertyName("price_distance_threshold")]
     public double PriceDistanceThreshold { get; set; } = 0.002;
 
+    [JsonPropertyName("filter_by_min_effective_cost")]
+    public bool FilterByMinEffectiveCost { get; set; }
+
     [JsonPropertyName("auto_gs")]
     public bool AutoGs { get; set; }
 
@@ -108,6 +111,7 @@ public class PbMultiConfigV614 : IPbMultiConfig
             MaxNCancellationsPerBatch = MaxNCancellationsPerBatch,
             MaxNCreationsPerBatch = MaxNCreationsPerBatch,
             PriceDistanceThreshold = PriceDistanceThreshold,
+            FilterByMinEffectiveCost = FilterByMinEffectiveCost,
             AutoGs = AutoGs,
             Leverage = Leverage,
             TweLong = TweLong,
