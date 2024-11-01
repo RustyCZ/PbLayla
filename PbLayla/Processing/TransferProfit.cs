@@ -81,7 +81,7 @@ public class TransferProfit : ITransferProfit
             if (transferDeficit > 0)
             {
                 // we can transfer profit
-                transferredChange = transferDeficit * m_options.Value.TransferProfitRatio;
+                transferredChange = Math.Round(transferDeficit * m_options.Value.TransferProfitRatio, 4);
                 remainingChange = profitChange - transferredChange;
                 transferDeficit = 0;
             }
