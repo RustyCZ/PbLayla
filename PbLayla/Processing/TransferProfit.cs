@@ -121,14 +121,14 @@ public class TransferProfit : ITransferProfit
             }
         }
         
-        m_logger.LogInformation("{AccountName}: Marking {TransactionCount} transaction logs as processed", m_options.Value.AccountName, transactionLogs.Length);
-        await m_profitTransferRepository.MarkTransactionLogsProcessedAsync(transactionLogs,
+        m_logger.LogInformation("{AccountName}: Marking {TransactionCount} transaction logs as processed", m_options.Value.AccountName, missingLogs.Length);
+        await m_profitTransferRepository.MarkTransactionLogsProcessedAsync(missingLogs,
             monthlyTotalProfitChanges,
             monthlyTransferredProfitChanges,
             monthlyRemainingProfitChanges,
             transferDeficit,
             cancel);
-        m_logger.LogInformation("{AccountName}: Marked {TransactionCount} transaction logs as processed", m_options.Value.AccountName, transactionLogs.Length);
+        m_logger.LogInformation("{AccountName}: Marked {TransactionCount} transaction logs as processed", m_options.Value.AccountName, missingLogs.Length);
     }
 
     private static string GetMonthKey(DateTime date)

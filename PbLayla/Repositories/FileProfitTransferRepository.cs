@@ -42,6 +42,10 @@ public class FileProfitTransferRepository : IProfitTransferRepository
     {
         var processedLogs = await GetProcessedProfitTransferAsync(cancel);
         processedLogs.ProcessedLogs.AddRange(transactionLogs);
+        processedLogs.ProcessedLogs = processedLogs.ProcessedLogs
+            .DistinctBy(x => x.Id)
+            .OrderByDescending(x => x.TransactionType)
+            .ToList();
         processedLogs.TransferDeficit = transferDeficit;
         foreach (var (key, value) in monthlyTotalProfitChanges)
         {
