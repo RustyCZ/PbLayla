@@ -1,20 +1,17 @@
 ﻿using Bybit.Net.Clients;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Objects;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PbLayla.Configuration;
 using PbLayla.Exchanges;
+using PbLayla.HealthChecks;
 using PbLayla.Helpers;
 using PbLayla.PbLifeCycle;
 using PbLayla.Processing;
 using PbLayla.Processing.Dori;
 using PbLayla.Repositories;
 using PbLayla.Services;
-using DoriServiceOptions = PbLayla.Processing.Dori.DoriServiceOptions;
 
 namespace PbLayla;
 
@@ -22,103 +19,105 @@ internal class Program
 {
     static async Task Main(string[] args)
     {
-        var host = Host
-            .CreateDefaultBuilder(args)
-            .ConfigureAppConfiguration((context, config) =>
+        var builder = WebApplication.CreateBuilder(args);
+        builder.Configuration.AddEnvironmentVariables("PBLAYLA_");
+        var configuration = builder.Configuration.GetSection("PbLayla").Get<PbLaylaConfig>();
+        if (configuration == null)
+            throw new InvalidOperationException("PbLayla configuration is missing");
+        var hc = builder.Services.AddHealthChecks();
+        hc.AddCheck<BackgroundExecutionHealthCheck>("RiskMonitor");
+        builder.Services.AddHostedService<MonitorService>();
+        builder.Services.AddOptions<BackgroundExecutionLastStateProviderOptions>().Configure(x =>
+        {
+            x.RiskMonitorExecutionInterval = configuration.RiskMonitor.ExecutionInterval;
+            x.AllowedExecutionDelay = configuration.RiskMonitor.AllowedExecutionDelay;
+        });
+        builder.Services.AddSingleton<IBackgroundExecutionLastStateProvider, BackgroundExecutionLastStateProvider>();
+        builder.Services.AddOptions<MonitorServiceOptions>().Configure(x =>
+        {
+            x.ExecutionInterval = configuration.RiskMonitor.ExecutionInterval;
+        });
+        builder.Services.AddOptions<DockerPbLifeCycleControllerOptions>().Configure(x =>
+        {
+            x.DockerHost = configuration.Docker.DockerHost;
+            x.Image = configuration.Docker.Image;
+            x.ConfigsPath = configuration.Docker.ConfigsPath;
+            x.ApiKeysPath = configuration.Docker.ApiKeysPath;
+            x.MountConfigsPath = configuration.Docker.MountConfigsPath;
+            x.MountApiKeysPath = configuration.Docker.MountApiKeysPath;
+        });
+        builder.Services.AddSingleton<IPbLifeCycleController, DockerPbLifeCycleController>();
+        builder.Services.AddSingleton<IEnumerable<IRiskMonitor>>(sp =>
+        {
+            List<IRiskMonitor> accountDataProviders = new List<IRiskMonitor>();
+            foreach (var account in configuration.Accounts)
             {
-                config.AddEnvironmentVariables("PBLAYLA_");
-            })
-            .ConfigureServices((context, services) =>
+                if (string.IsNullOrWhiteSpace(account.ApiKey) || string.IsNullOrWhiteSpace(account.ApiSecret))
+                    continue;
+                var accountDataProvider = CreateRiskMonitor(account, sp);
+                accountDataProviders.Add(accountDataProvider);
+            }
+
+            return accountDataProviders;
+        });
+        builder.Services.AddSingleton<IEnumerable<ITransferProfit>>(sp =>
+        {
+            List<ITransferProfit> transferProfits = new List<ITransferProfit>();
+            foreach (var account in configuration.Accounts)
             {
-                var configuration = context.Configuration.GetSection("PbLayla").Get<PbLaylaConfig>();
-                if (configuration == null)
-                    throw new InvalidOperationException("PbLayla configuration is missing");
+                if (string.IsNullOrWhiteSpace(account.ApiKey) || string.IsNullOrWhiteSpace(account.ApiSecret))
+                    continue;
+                if (!account.EnableProfitTransfer)
+                    continue;
+                var transferProfit = CreateBybitTransferProfit(account, sp);
+                transferProfits.Add(transferProfit);
+            }
 
-                services.AddHostedService<MonitorService>();
-                services.AddOptions<MonitorServiceOptions>().Configure(x =>
-                {
-                    x.ExecutionInterval = configuration.RiskMonitor.ExecutionInterval;
-                });
-                services.AddOptions<DockerPbLifeCycleControllerOptions>().Configure(x =>
-                {
-                    x.DockerHost = configuration.Docker.DockerHost;
-                    x.Image = configuration.Docker.Image;
-                    x.ConfigsPath = configuration.Docker.ConfigsPath;
-                    x.ApiKeysPath = configuration.Docker.ApiKeysPath;
-                    x.MountConfigsPath = configuration.Docker.MountConfigsPath;
-                    x.MountApiKeysPath = configuration.Docker.MountApiKeysPath;
-                });
-                services.AddSingleton<IPbLifeCycleController, DockerPbLifeCycleController>();
-                services.AddSingleton<IEnumerable<IRiskMonitor>>(sp =>
-                {
-                    List<IRiskMonitor> accountDataProviders = new List<IRiskMonitor>();
-                    foreach (var account in configuration.Accounts)
-                    {
-                        if (string.IsNullOrWhiteSpace(account.ApiKey) || string.IsNullOrWhiteSpace(account.ApiSecret))
-                            continue;
-                        var accountDataProvider = CreateRiskMonitor(account, sp);
-                        accountDataProviders.Add(accountDataProvider);
-                    }
+            return transferProfits;
+        });
+        builder.Services.AddSingleton<IDoriService, DoriService>();
+        builder.Services.AddOptions<DoriServiceOptions>().Configure(x =>
+        {
+            x.Username = configuration.Dori.Username;
+            x.Password = configuration.Dori.Password;
+            x.Url = configuration.Dori.Url;
+        });
+        bool useDori = configuration.Accounts.Any(x => x.ManageDori);
+        if (useDori)
+        {
+            builder.Services.AddHostedService<DoriBackgroundService>();
+            builder.Services.AddOptions<DoriBackgroundServiceOptions>().Configure(x =>
+            {
+                x.ExecutionInterval = configuration.Dori.ExecutionInterval;
+                x.ExecutionFailInterval = configuration.Dori.ExecutionFailInterval;
+                x.Strategies = configuration.Accounts
+                    .Where(a => a.ManageDori)
+                    .Select(a => a.Name)
+                    .ToArray();
+            });
+        }
 
-                    return accountDataProviders;
-                });
-                services.AddSingleton<IEnumerable<ITransferProfit>>(sp =>
-                {
-                    List<ITransferProfit> transferProfits = new List<ITransferProfit>();
-                    foreach (var account in configuration.Accounts)
-                    {
-                        if (string.IsNullOrWhiteSpace(account.ApiKey) || string.IsNullOrWhiteSpace(account.ApiSecret))
-                            continue;
-                        if (!account.EnableProfitTransfer)
-                            continue;
-                        var transferProfit = CreateBybitTransferProfit(account, sp);
-                        transferProfits.Add(transferProfit);
-                    }
+        bool useTransferProfit = configuration.Accounts.Any(x => x.EnableProfitTransfer);
+        if (useTransferProfit)
+        {
+            builder.Services.AddHostedService<TransferProfitService>();
+            builder.Services.AddOptions<TransferProfitServiceOptions>().Configure(x =>
+            {
+                x.ExecutionInterval = configuration.TransferProfit.ExecutionInterval;
+            });
+        }
 
-                    return transferProfits;
-                });
-                services.AddSingleton<IDoriService, DoriService>();
-                services.AddOptions<DoriServiceOptions>().Configure(x =>
-                {
-                    x.Username = configuration.Dori.Username;
-                    x.Password = configuration.Dori.Password;
-                    x.Url = configuration.Dori.Url;
-                });
-                bool useDori = configuration.Accounts.Any(x => x.ManageDori);
-                if (useDori)
-                {
-                    services.AddHostedService<DoriBackgroundService>();
-                    services.AddOptions<DoriBackgroundServiceOptions>().Configure(x =>
-                    {
-                        x.ExecutionInterval = configuration.Dori.ExecutionInterval;
-                        x.ExecutionFailInterval = configuration.Dori.ExecutionFailInterval;
-                        x.Strategies = configuration.Accounts
-                            .Where(a => a.ManageDori)
-                            .Select(a => a.Name)
-                            .ToArray();
-                    });
-                }
+        builder.Services.AddLogging(options =>
+        {
+            options.AddSimpleConsole(o =>
+            {
+                o.UseUtcTimestamp = true;
+                o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+            });
+        });
 
-                bool useTransferProfit = configuration.Accounts.Any(x => x.EnableProfitTransfer);
-                if (useTransferProfit)
-                {
-                    services.AddHostedService<TransferProfitService>();
-                    services.AddOptions<TransferProfitServiceOptions>().Configure(x =>
-                    {
-                        x.ExecutionInterval = configuration.TransferProfit.ExecutionInterval;
-                    });
-                }
-                    
-                services.AddLogging(options =>
-                {
-                    options.AddSimpleConsole(o =>
-                    {
-                        o.UseUtcTimestamp = true;
-                        o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
-                    });
-                });
-            })
-            .Build();
+        var host = builder.Build();
+        host.MapHealthChecks("/healthz");
         var lf = host.Services.GetRequiredService<ILoggerFactory>();
         ApplicationLogging.LoggerFactory = lf;
         await host.RunAsync();
