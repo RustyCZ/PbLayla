@@ -29,6 +29,12 @@ public class DoriBackgroundService : BackgroundService
             {
                 m_logger.LogInformation("Querying Dori Service...");
                 success = await QueryDoriAsync(stoppingToken);
+                if (m_options.Value.MarketTrendAdaptive)
+                {
+                    bool marketTrend = await QueryDoriMarketTrendAsync(stoppingToken);
+                    if (!marketTrend)
+                        success = false;
+                }
                 m_logger.LogInformation("Querying Dori Service... Done");
             }
             catch (Exception e)
@@ -63,5 +69,21 @@ public class DoriBackgroundService : BackgroundService
         }
 
         return allSuccess;
+    }
+
+    private async Task<bool> QueryDoriMarketTrendAsync(CancellationToken cancel)
+    {
+        try
+        {
+            m_logger.LogInformation("Querying Dori for market trend");
+            bool marketTrend = await m_doriService.QueryDoriMarketTrendAsync(cancel);
+            m_logger.LogInformation("Querying Dori for market trend... Done");
+            return marketTrend;
+        }
+        catch (Exception e)
+        {
+            m_logger.LogWarning(e, "Error querying Dori for market trend");
+            return false;
+        }
     }
 }

@@ -16,12 +16,22 @@
         public double OverExposeFilterFactor { get; set; } = 1.1;
         public string UnstuckConfig { get; set; } = string.Empty;
         public string DoriConfig { get; set; } = string.Empty;
+        public string CautiousDoriConfig { get; set; } = string.Empty;
+        public string CautiousUnstuckConfig { get; set; } = string.Empty;
         public double UnstuckExposure { get; set; } = 1.0;
+        public double NormalPbStuckThreshold { get; set; } = 0.97;
+        public double FastReducePbStuckThreshold { get; set; } = 0.3;
+        public double NormalPbLossAllowance { get; set; } = 0.01;
+        public double FastReducePbLossAllowance { get; set; } = 0.05;
         public bool DisableOthersWhileUnstucking { get; set; }
-        public double PriceDistanceStuck { get; set; } = 0.05;
-        public double PriceDistanceCloseHedge { get; set; } = 0.04;
-        public double PriceDistanceUnstuckStuck { get; set; } = 0.1;
-        public double PriceDistanceUnstuckCloseHedge { get; set; } = 0.09;
+        public double PriceDistanceStuck { get; set; } = 0.12;
+        public double PriceDistanceCloseHedge { get; set; } = 0.118;
+        public double PriceDistanceUnstuckStuck { get; set; } = 0.2;
+        public double PriceDistanceUnstuckCloseHedge { get; set; } = 0.198;
+        public double CautiousDistanceStuck { get; set; } = 0.25;
+        public double CautiousDistanceCloseHedge { get; set; } = 0.248;
+        public double CautiousDistanceUnstuckStuck { get; set; } = 0.3;
+        public double CautiousDistanceUnstuckCloseHedge { get; set; } = 0.298;
         public int MaxHedgeReleaseAttempts { get; set; } = 30;
         public TimeSpan MaxHedgeReleaseAttemptsPeriod { get; set; } = TimeSpan.FromHours(24);
         public int MaxUnstuckSymbols { get; set; } = 1;
@@ -41,5 +51,6 @@
         public TimeSpan TransferProfitLookBack { get; set; } = TimeSpan.FromDays(3);
         public TimeSpan TransferProfitLogHistory { get; set; } = TimeSpan.FromDays(30);
         public PbVersion PbVersion { get; set; } = PbVersion.V610;
+        public bool MarketTrendAdaptive { get; set; }
     }
 }

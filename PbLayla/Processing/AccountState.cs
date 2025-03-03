@@ -2,6 +2,8 @@
 
 public enum AccountState
 {
+    // non adaptive states
+
     /// <summary>
     /// No risk state
     /// </summary>
@@ -18,5 +20,30 @@ public enum AccountState
     /// Other existing positions will have close orders set at take profit distance to try to reduce the total wallet exposure.
     /// Other existing positions will not add up any more exposure at this stage.
     /// </summary>
-    StageOneStuck
+    StageOneStuck,
+
+    // adaptive states based on Dori trend
+
+    /// <summary>
+    /// Use normal configuration
+    /// </summary>
+    AdaptiveNormal,
+    /// <summary>
+    /// Use normal configuration with unstuck
+    /// </summary>
+    AdaptiveNormalStuck,
+    /// <summary>
+    /// Use cautious configuration with wider grid
+    /// </summary>
+    AdaptiveCautious,
+    /// <summary>
+    /// Use cautious configuration with wider grid and unstuck
+    /// </summary>
+    AdaptiveCautiousStuck,
+    /// <summary>
+    /// Use cautious configuration with wider grid and reduce position size faster
+    /// There are probably some stuck positions for normal config or already over exposed account
+    /// We don't want to play with any extra wallet exposure and reduce positions as fast as possible
+    /// </summary>
+    AdaptiveCautiousFastReduce,
 }

@@ -8,5 +8,9 @@ public interface IDoriService
 
     Task<bool> QueryDoriAsync(string strategyName, CancellationToken cancel = default);
 
+    Task<bool> QueryDoriMarketTrendAsync(CancellationToken cancel = default);
+
     Task<StrategyApiResult?> TryGetDoriStrategyAsync(string strategyName, CancellationToken cancel = default);
+
+    Task<MarketTrend?> TryGetMarketTrendAsync(CancellationToken cancel = default);
 }

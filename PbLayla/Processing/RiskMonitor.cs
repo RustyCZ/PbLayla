@@ -1,12 +1,12 @@
 ﻿using System.Diagnostics;
 using System.Text.Json;
 using Hjson;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PbLayla.Configuration;
 using PbLayla.Exchanges;
 using PbLayla.Helpers;
 using PbLayla.Model;
+using PbLayla.Model.Dori;
 using PbLayla.Model.PbConfig;
 using PbLayla.PbLifeCycle;
 using PbLayla.Processing.Dori;
@@ -16,6 +16,7 @@ namespace PbLayla.Processing;
 
 public class RiskMonitor : IRiskMonitor
 {
+    protected readonly record struct HedgeDistances(double PriceDistanceStuck, double PriceDistanceCloseHedge, double PriceDistanceUnstuckStuck, double PriceDistanceUnstuckCloseHedge);
     private readonly IPbFuturesRestClient m_client; 
     private readonly IOptions<RiskMonitorOptions> m_options;
     private readonly ILogger<RiskMonitor> m_logger;
@@ -28,6 +29,7 @@ public class RiskMonitor : IRiskMonitor
     private string? m_currentConfig;
     private readonly HashSet<string> m_currentUnstuckingSymbols;
     private readonly HashSet<string> m_manualHedgeSymbols;
+    private AccountState m_currentAccountState;
 
     public RiskMonitor(IOptions<RiskMonitorOptions> options,
         IPbFuturesRestClient client,
@@ -54,6 +56,31 @@ public class RiskMonitor : IRiskMonitor
                 WriteIndented = true,
             }));
         m_currentUnstuckingSymbols = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+    }
+
+    private HedgeDistances CurrentHedgeDistances
+    {
+        get
+        {
+            var accountState = m_currentAccountState;
+            switch (accountState)
+            {
+                case AccountState.AdaptiveCautious:
+                case AccountState.AdaptiveCautiousStuck:
+                case AccountState.AdaptiveCautiousFastReduce:
+                    return new HedgeDistances(
+                        m_options.Value.CautiousDistanceStuck,
+                        m_options.Value.CautiousDistanceCloseHedge,
+                        m_options.Value.CautiousDistanceUnstuckStuck,
+                        m_options.Value.CautiousDistanceUnstuckCloseHedge);
+                default:
+                    return new HedgeDistances(
+                        m_options.Value.PriceDistanceStuck,
+                        m_options.Value.PriceDistanceCloseHedge,
+                        m_options.Value.PriceDistanceUnstuckStuck,
+                        m_options.Value.PriceDistanceUnstuckCloseHedge);
+            }
+        }
     }
 
     public async Task ExecuteAsync(CancellationToken cancel = default)
@@ -199,21 +226,55 @@ public class RiskMonitor : IRiskMonitor
     {
         if (m_options.Value.ManagePbLifecycle)
         {
-            var accountState = EvaluateAccountState(riskModel);
-            m_logger.LogInformation("{AccountName}: Account state is {AccountState}",
-                m_options.Value.AccountName,
-                accountState);
-            switch (accountState)
+            if (m_options.Value.MarketTrendAdaptive)
             {
-                case AccountState.Normal:
-                    await EnsureNormalStateAsync(riskModel, cancel);
-                    break;
-                case AccountState.StageOneStuck:
-                    await EnsureStageOneStuckStateAsync(riskModel, cancel);
-                    break;
-                default:
-                    m_logger.LogWarning("{AccountName}: Unknown account state", m_options.Value.AccountName);
-                    break;
+                var accountState = await EvaluateAdaptiveAccountStateAsync(riskModel, cancel);
+                m_currentAccountState = accountState;
+                m_logger.LogInformation("{AccountName}: Account state is {AccountState}",
+                    m_options.Value.AccountName,
+                    accountState);
+                switch (accountState)
+                {
+                    case AccountState.AdaptiveNormal:
+                    case AccountState.Normal:
+                        await EnsureAdaptiveNormalStateAsync(riskModel, cancel);
+                        break;
+                    case AccountState.AdaptiveNormalStuck:
+                        await EnsureAdaptiveNormalStuckStateAsync(riskModel, cancel);
+                        break;
+                    case AccountState.AdaptiveCautious:
+                        await EnsureAdaptiveCautiousStateAsync(riskModel, cancel);
+                        break;
+                    case AccountState.AdaptiveCautiousStuck:
+                        await EnsureAdaptiveCautiousStuckStateAsync(riskModel, cancel);
+                        break;
+                    case AccountState.AdaptiveCautiousFastReduce:
+                        await EnsureAdaptiveCautiousFastReduceStateAsync(riskModel, cancel);
+                        break;
+                    default:
+                        m_logger.LogWarning("{AccountName}: Unknown adaptive account state", m_options.Value.AccountName);
+                        break;
+                }
+            }
+            else
+            {
+                var accountState = EvaluateAccountState(riskModel);
+                m_currentAccountState = accountState;
+                m_logger.LogInformation("{AccountName}: Account state is {AccountState}",
+                    m_options.Value.AccountName,
+                    accountState);
+                switch (accountState)
+                {
+                    case AccountState.Normal:
+                        await EnsureNormalStateAsync(riskModel, cancel);
+                        break;
+                    case AccountState.StageOneStuck:
+                        await EnsureStageOneStuckStateAsync(riskModel, cancel);
+                        break;
+                    default:
+                        m_logger.LogWarning("{AccountName}: Unknown account state", m_options.Value.AccountName);
+                        break;
+                }
             }
         }
 
@@ -227,6 +288,7 @@ public class RiskMonitor : IRiskMonitor
 
     private async Task HedgePositionsAsync(RiskModel riskModel, CancellationToken cancel)
     {
+        var currentHedgeDistances = CurrentHedgeDistances;
         foreach (var longPosition in riskModel.LongPositions.Values)
         {
             if (m_manualHedgeSymbols.Contains(longPosition.Position.Symbol))
@@ -234,17 +296,17 @@ public class RiskMonitor : IRiskMonitor
             if (m_currentUnstuckingSymbols.Contains(longPosition.Position.Symbol))
             {
                 await HedgePositionAsync(
-                    longPosition, 
-                    m_options.Value.PriceDistanceUnstuckStuck, 
-                    m_options.Value.PriceDistanceUnstuckCloseHedge, 
+                    longPosition,
+                    currentHedgeDistances.PriceDistanceUnstuckStuck,
+                    currentHedgeDistances.PriceDistanceUnstuckCloseHedge, 
                     cancel);
             }
             else
             {
                 await HedgePositionAsync(
-                    longPosition, 
-                    m_options.Value.PriceDistanceStuck, 
-                    m_options.Value.PriceDistanceCloseHedge, 
+                    longPosition,
+                    currentHedgeDistances.PriceDistanceStuck,
+                    currentHedgeDistances.PriceDistanceCloseHedge, 
                     cancel);
             }
         }
@@ -303,6 +365,8 @@ public class RiskMonitor : IRiskMonitor
 
     private async Task MaintainExistingHedgeAsync(PositionRiskModel longPosition, CancellationToken cancel)
     {
+        if (longPosition.HedgePosition == null)
+            return;
         if (longPosition.Position.Quantity < longPosition.HedgePosition.Quantity)
         {
             // close part of the hedge
@@ -355,6 +419,95 @@ public class RiskMonitor : IRiskMonitor
             return AccountState.StageOneStuck;
 
         return AccountState.Normal;
+    }
+
+    private async Task<AccountState> EvaluateAdaptiveAccountStateAsync(RiskModel riskModel, CancellationToken cancel)
+    {
+        var marketTrend = await m_doriService.TryGetMarketTrendAsync(cancel);
+        if (marketTrend == null || marketTrend.GlobalTrend == Trend.Unknown)
+        {
+            m_logger.LogInformation("{AccountName}: Market trend not ready, let's use unknown state", m_options.Value.AccountName);
+            return AccountState.Unknown;
+        }
+
+        if (marketTrend.GlobalTrend == Trend.Bullish)
+        {
+            var normalStuckPositionsCount = riskModel.FilterStuckPositions(
+                m_options.Value.StuckExposureRatio,
+                m_options.Value.MinStuckTime,
+                m_options.Value.PriceDistanceStuck,
+                m_options.Value.OverExposeFilterFactor);
+            var unstuckingHedgeCount = riskModel.LongPositions
+                .Where(x => m_currentUnstuckingSymbols.Contains(x.Key)).Select(x => x.Value)
+                .Count(x => x.PriceActionDistance > m_options.Value.PriceDistanceUnstuckStuck && x.Position.UnrealizedPnl < 0);
+            if (normalStuckPositionsCount.Length == 0 && unstuckingHedgeCount == 0)
+            {
+                m_logger.LogInformation("{AccountName}: Market trend is bullish, no stuck positions, no unstucking hedges, let's run normal state", m_options.Value.AccountName);
+                return AccountState.AdaptiveNormal;
+            }
+
+            if (normalStuckPositionsCount.Length <= m_options.Value.MaxUnstuckSymbols && unstuckingHedgeCount == 0)
+            {
+                m_logger.LogInformation("{AccountName}: Market trend is bullish, acceptable stuck positions count, no unstucking hedges, let's run normal state", m_options.Value.AccountName);
+                return AccountState.AdaptiveNormalStuck;
+            }
+
+            if (normalStuckPositionsCount.Length > m_options.Value.MaxUnstuckSymbols)
+            {
+                // we have too many stuck positions, we should reduce them as soon as possible
+                m_logger.LogInformation("{AccountName}: Market trend is bullish, too many stuck positions for normal, let's use cautious state with fast reduce", m_options.Value.AccountName);
+                return AccountState.AdaptiveCautiousFastReduce;
+            }
+
+            if (unstuckingHedgeCount > 0)
+            {
+                // we have unstucking hedges, we should get rid of them as soon as possible
+                m_logger.LogInformation("{AccountName}: Market trend is bullish, account has potential unstucking hedges in normal, let's use cautious state with fast reduce", m_options.Value.AccountName);
+                return AccountState.AdaptiveCautiousFastReduce;
+            }
+        }
+
+        if (marketTrend.GlobalTrend == Trend.Bearish)
+        {
+            // in bearish trend we want to use larger grid and far away hedge distances and wait it out for bullish trend to reduce positions
+            var cautiousStuckPositionsCount = riskModel.FilterStuckPositions(
+                m_options.Value.StuckExposureRatio,
+                m_options.Value.MinStuckTime,
+                m_options.Value.CautiousDistanceCloseHedge,
+                m_options.Value.OverExposeFilterFactor);
+            var cautiousUnstuckingHedgeCount = riskModel.LongPositions
+                .Where(x => m_currentUnstuckingSymbols.Contains(x.Key)).Select(x => x.Value)
+                .Count(x => x.PriceActionDistance > m_options.Value.CautiousDistanceUnstuckStuck && x.Position.UnrealizedPnl < 0);
+
+            if (cautiousStuckPositionsCount.Length == 0 && cautiousUnstuckingHedgeCount == 0)
+            {
+                m_logger.LogInformation("{AccountName}: Market trend is bearish, no stuck positions, no unstucking hedges, let's run cautious state", m_options.Value.AccountName);
+                return AccountState.AdaptiveCautious;
+            }
+
+            if (cautiousStuckPositionsCount.Length <= m_options.Value.MaxUnstuckSymbols && cautiousUnstuckingHedgeCount == 0)
+            {
+                m_logger.LogInformation("{AccountName}: Market trend is bearish, acceptable stuck positions count, no unstucking hedges, let's run cautious state", m_options.Value.AccountName);
+                return AccountState.AdaptiveCautiousStuck;
+            }
+
+            if (cautiousStuckPositionsCount.Length > m_options.Value.MaxUnstuckSymbols)
+            {
+                // dangerous bearish scenario with some hedges
+                m_logger.LogInformation("{AccountName}: Market trend is bearish, too many stuck positions for cautious, let's use cautious state with fast reduce", m_options.Value.AccountName);
+                return AccountState.AdaptiveCautiousFastReduce;
+            }
+
+            if (cautiousUnstuckingHedgeCount > 0)
+            {
+                // very dangerous bearish scenario that has potentially bigger allocation in ver bad positions
+                m_logger.LogInformation("{AccountName}: Market trend is bearish, account has potential unstucking hedges in cautious, let's use cautious state with fast reduce", m_options.Value.AccountName);
+                return AccountState.AdaptiveCautiousFastReduce;
+            }
+        }
+
+        m_logger.LogInformation("{AccountName}: Account state is unknown.", m_options.Value.AccountName);
+        return AccountState.Unknown;
     }
 
     private IPbMultiConfig? LoadConfigTemplate()
@@ -428,18 +581,34 @@ public class RiskMonitor : IRiskMonitor
             riskModel, 
             AccountState.Normal, 
             template => template.GenerateNormalConfig(),
-            NormalStartExchangeAsync,
+            StartExchangeOperationsAsync,
             cancel);
         m_currentUnstuckingSymbols.Clear();
     }
 
     private async Task EnsureStageOneStuckStateAsync(RiskModel riskModel, CancellationToken cancel)
     {
+        await EnsureUnstuckStateAsync(riskModel,
+            AccountState.StageOneStuck,
+            m_options.Value.PriceDistanceUnstuckStuck,
+            config => config.GenerateUnstuckConfig(m_currentUnstuckingSymbols,
+                m_options.Value.UnstuckConfig,
+                m_options.Value.UnstuckExposure,
+                m_options.Value.DisableOthersWhileUnstucking),
+            cancel);
+    }
+
+    private async Task EnsureUnstuckStateAsync(RiskModel riskModel, 
+        AccountState accountState,
+        double priceDistanceUnstuckStuck,
+        Func<IPbMultiConfig, string> configTransformationFunc,
+        CancellationToken cancel)
+    {
         // first prefer previously stucked symbols
         var stuckPositions = riskModel.FilterStuckPositions(
             m_options.Value.StuckExposureRatio,
             m_options.Value.MinStuckTime,
-            m_options.Value.PriceDistanceStuck,
+            priceDistanceUnstuckStuck,
             m_options.Value.OverExposeFilterFactor);
 
         // remove symbols that are not stuck anymore
@@ -449,12 +618,6 @@ public class RiskMonitor : IRiskMonitor
         foreach (var symbolNotStuckAnymore in symbolsNotStuckAnymore)
             m_currentUnstuckingSymbols.Remove(symbolNotStuckAnymore);
 
-        if (stuckPositions.Length == 0 && stuckPositions.Length == 0)
-        {
-            m_logger.LogWarning("{AccountName}: No stuck positions found", m_options.Value.AccountName);
-            return;
-        }
-
         // add symbols that are overexposed
         var overexposedPositions = riskModel.FilterOverExposedPositions(
             m_options.Value.StuckExposureRatio,
@@ -463,7 +626,7 @@ public class RiskMonitor : IRiskMonitor
             m_options.Value.OverExposeFilterFactor);
         int maxUnstuckSymbols = m_options.Value.MaxUnstuckSymbols;
         if (m_currentUnstuckingSymbols.Count < maxUnstuckSymbols && overexposedPositions.Length > 0)
-        { 
+        {
             var orderedByHighestExposure = overexposedPositions.OrderByDescending(x => x.PositionExposure);
             foreach (var overexposedPosition in orderedByHighestExposure)
             {
@@ -485,30 +648,148 @@ public class RiskMonitor : IRiskMonitor
                 m_currentUnstuckingSymbols.Add(stuckPosition.Position.Symbol);
             }
         }
-        
-        if(m_currentUnstuckingSymbols.Count == 0)
-        {
-            m_logger.LogWarning("{AccountName}: No symbol to unstuck found", m_options.Value.AccountName);
-            return;
-        }
 
         await EnsureStateAsync(
-            riskModel, 
-            AccountState.StageOneStuck,
-            config => config.GenerateUnstuckConfig(m_currentUnstuckingSymbols, 
-                m_options.Value.UnstuckConfig, 
-                m_options.Value.UnstuckExposure,
-                m_options.Value.DisableOthersWhileUnstucking),
-            StageOneStartExchangeAsync,
+            riskModel,
+            accountState,
+            configTransformationFunc,
+            StartExchangeOperationsAsync,
             cancel);
     }
 
-    private async Task StageOneStartExchangeAsync(CancellationToken cancel)
+    private async Task EnsureAdaptiveCautiousFastReduceStateAsync(RiskModel riskModel, CancellationToken cancel)
     {
-        await CancelBuyOrderAsync(cancel);
+        // there are probably some stuck positions for normal config or already over exposed account
+        string normalConfig = m_options.Value.CautiousDoriConfig;
+        string unstuckConfig = m_options.Value.CautiousUnstuckConfig;
+        double pbStuckThreshold = m_options.Value.FastReducePbStuckThreshold;
+        double pbLossAllowance = m_options.Value.FastReducePbLossAllowance;
+        await EnsureStateAsync(
+            riskModel,
+            AccountState.AdaptiveCautiousFastReduce,
+            template => template.GenerateNormalAdaptiveTrendConfig(normalConfig, unstuckConfig, pbStuckThreshold, pbLossAllowance),
+            StartExchangeOperationsAsync,
+            cancel);
+        m_currentUnstuckingSymbols.Clear();
+
+        // keep unstucking only coins that are already overexposed and considered stuck under normal config
+        var overexposedPositions = riskModel.FilterOverExposedPositions(
+            m_options.Value.StuckExposureRatio,
+            m_options.Value.MinStuckTime,
+            m_options.Value.PriceDistanceStuck,
+            m_options.Value.OverExposeFilterFactor);
+        int maxUnstuckSymbols = m_options.Value.MaxUnstuckSymbols;
+        if (m_currentUnstuckingSymbols.Count < maxUnstuckSymbols && overexposedPositions.Length > 0)
+        {
+            var orderedByHighestExposure = overexposedPositions.OrderByDescending(x => x.PositionExposure);
+            foreach (var overexposedPosition in orderedByHighestExposure)
+            {
+                if (m_currentUnstuckingSymbols.Count >= maxUnstuckSymbols)
+                    break;
+                m_currentUnstuckingSymbols.Add(overexposedPosition.Position.Symbol);
+            }
+        }
+
+        if (m_currentUnstuckingSymbols.Any())
+        {
+            await EnsureStateAsync(
+                riskModel,
+                AccountState.AdaptiveCautiousFastReduce,
+                config => config.GenerateUnstuckAdaptiveTrendConfig(m_currentUnstuckingSymbols, 
+                    normalConfig,
+                    unstuckConfig,
+                    pbStuckThreshold,
+                    pbLossAllowance,
+                    m_options.Value.UnstuckExposure,
+                    m_options.Value.DisableOthersWhileUnstucking),
+                StartExchangeOperationsAsync,
+                cancel);
+        }
+        else
+        {
+            await EnsureStateAsync(
+                riskModel,
+                AccountState.AdaptiveCautiousFastReduce,
+                config => config.GenerateNormalAdaptiveTrendConfig(normalConfig,
+                    unstuckConfig,
+                    pbStuckThreshold,
+                    pbLossAllowance),
+                StartExchangeOperationsAsync,
+                cancel);
+        }
     }
 
-    private async Task NormalStartExchangeAsync(CancellationToken cancel)
+    private async Task EnsureAdaptiveCautiousStuckStateAsync(RiskModel riskModel, CancellationToken cancel)
+    {
+        string normalConfig = m_options.Value.CautiousDoriConfig;
+        string unstuckConfig = m_options.Value.CautiousUnstuckConfig;
+        double pbStuckThreshold = m_options.Value.NormalPbStuckThreshold;
+        double pbLossAllowance = m_options.Value.NormalPbLossAllowance;
+        // bearish scenario with a single stuck position that can be handled with extra wallet exposure and cautious unstuck config
+        await EnsureUnstuckStateAsync(riskModel,
+            AccountState.AdaptiveCautiousStuck,
+            m_options.Value.PriceDistanceUnstuckStuck,
+            config => config.GenerateUnstuckAdaptiveTrendConfig(m_currentUnstuckingSymbols,
+                normalConfig,
+                unstuckConfig,
+                pbStuckThreshold,
+                pbLossAllowance,
+                m_options.Value.CautiousDistanceStuck,
+                m_options.Value.DisableOthersWhileUnstucking),
+            cancel);
+    }
+
+    private async Task EnsureAdaptiveCautiousStateAsync(RiskModel riskModel, CancellationToken cancel)
+    {
+        string normalConfig = m_options.Value.CautiousDoriConfig;
+        string unstuckConfig = m_options.Value.CautiousUnstuckConfig;
+        double pbStuckThreshold = m_options.Value.NormalPbStuckThreshold;
+        double pbLossAllowance = m_options.Value.NormalPbLossAllowance;
+        await EnsureStateAsync(
+            riskModel,
+            AccountState.AdaptiveCautious,
+            template => template.GenerateNormalAdaptiveTrendConfig(normalConfig, unstuckConfig, pbStuckThreshold, pbLossAllowance),
+            StartExchangeOperationsAsync,
+            cancel);
+        m_currentUnstuckingSymbols.Clear();
+    }
+
+    private async Task EnsureAdaptiveNormalStuckStateAsync(RiskModel riskModel, CancellationToken cancel)
+    {
+        string normalConfig = m_options.Value.DoriConfig;
+        string unstuckConfig = m_options.Value.UnstuckConfig;
+        double pbStuckThreshold = m_options.Value.NormalPbStuckThreshold;
+        double pbLossAllowance = m_options.Value.NormalPbLossAllowance;
+        // bullish scenario with a single stuck position that can be handled with extra wallet exposure and normal unstuck config
+        await EnsureUnstuckStateAsync(riskModel,
+            AccountState.AdaptiveNormalStuck,
+            m_options.Value.PriceDistanceStuck,
+            config => config.GenerateUnstuckAdaptiveTrendConfig(m_currentUnstuckingSymbols,
+                normalConfig,
+                unstuckConfig,
+                pbStuckThreshold,
+                pbLossAllowance,
+                m_options.Value.PriceDistanceStuck,
+                m_options.Value.DisableOthersWhileUnstucking),
+            cancel);
+    }
+
+    private async Task EnsureAdaptiveNormalStateAsync(RiskModel riskModel, CancellationToken cancel)
+    {
+        string normalConfig = m_options.Value.DoriConfig;
+        string unstuckConfig = m_options.Value.UnstuckConfig;
+        double pbStuckThreshold = m_options.Value.NormalPbStuckThreshold;
+        double pbLossAllowance = m_options.Value.NormalPbLossAllowance;
+        await EnsureStateAsync(
+            riskModel,
+            AccountState.AdaptiveNormal,
+            template => template.GenerateNormalAdaptiveTrendConfig(normalConfig, unstuckConfig, pbStuckThreshold, pbLossAllowance),
+            StartExchangeOperationsAsync,
+            cancel);
+        m_currentUnstuckingSymbols.Clear();
+    }
+
+    private async Task StartExchangeOperationsAsync(CancellationToken cancel)
     {
         await CancelBuyOrderAsync(cancel);
     }
@@ -674,6 +955,15 @@ public class RiskMonitor : IRiskMonitor
             {
                 m_logger.LogWarning("Dori config is not set");
                 return false;
+            }
+
+            if (m_options.Value.MarketTrendAdaptive)
+            {
+                if (string.IsNullOrEmpty(options.CautiousDoriConfig))
+                {
+                    m_logger.LogWarning("Cautious Dori config is not set");
+                    return false;
+                }
             }
         }
 

@@ -1,7 +1,6 @@
 ﻿using Bybit.Net.Clients;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Objects;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PbLayla.Configuration;
 using PbLayla.Exchanges;
@@ -83,13 +82,15 @@ internal class Program
             x.Url = configuration.Dori.Url;
         });
         bool useDori = configuration.Accounts.Any(x => x.ManageDori);
-        if (useDori)
+        bool marketTrendAdaptive = configuration.Accounts.Any(x => x.MarketTrendAdaptive);
+        if (useDori || marketTrendAdaptive)
         {
             builder.Services.AddHostedService<DoriBackgroundService>();
             builder.Services.AddOptions<DoriBackgroundServiceOptions>().Configure(x =>
             {
                 x.ExecutionInterval = configuration.Dori.ExecutionInterval;
                 x.ExecutionFailInterval = configuration.Dori.ExecutionFailInterval;
+                x.MarketTrendAdaptive = marketTrendAdaptive;
                 x.Strategies = configuration.Accounts
                     .Where(a => a.ManageDori)
                     .Select(a => a.Name)
@@ -168,7 +169,18 @@ internal class Program
             DoriConfig = account.DoriConfig,
             CopyTrading = account.CopyTrading,
             ManualHedgeSymbols = account.ManualHedgeSymbols,
-            PbVersion = account.PbVersion
+            PbVersion = account.PbVersion,
+            FastReducePbStuckThreshold = account.FastReducePbStuckThreshold,
+            CautiousUnstuckConfig = account.CautiousUnstuckConfig,
+            CautiousDoriConfig = account.CautiousDoriConfig,
+            CautiousDistanceStuck = account.CautiousDistanceStuck,
+            CautiousDistanceCloseHedge = account.CautiousDistanceCloseHedge,
+            CautiousDistanceUnstuckStuck = account.CautiousDistanceUnstuckStuck,
+            CautiousDistanceUnstuckCloseHedge = account.CautiousDistanceUnstuckCloseHedge,
+            NormalPbStuckThreshold = account.NormalPbStuckThreshold,
+            FastReducePbLossAllowance = account.FastReducePbLossAllowance,
+            NormalPbLossAllowance = account.NormalPbLossAllowance,
+            MarketTrendAdaptive = account.MarketTrendAdaptive
         });
         var fileHedgeRecordRepositoryOptions = new FileHedgeRecordRepositoryOptions
         {

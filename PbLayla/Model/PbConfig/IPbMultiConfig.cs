@@ -2,6 +2,10 @@
 
 public interface IPbMultiConfig
 {
+    double StuckThreshold { get; set; }
+
+    double LossAllowancePct { get; set; }
+
     SymbolOptions[] ParseSymbols();
 
     int GetSymbolCount();

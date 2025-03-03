@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -12,7 +13,7 @@ namespace PbLayla.Tests.PbDori;
 
 public class PbDoriApiTest
 {
-    [Fact]
+    [Fact(Skip = "Manual test")]
     public async Task QueryStrategyApiResult()
     {
         HttpClient client = new HttpClient();
@@ -31,6 +32,21 @@ public class PbDoriApiTest
         string responseContent = await client.GetStringAsync($"{url}{query}");
         Assert.NotNull(responseContent);
         var response = JsonSerializer.Deserialize<StrategyApiResult>(responseContent);
+        Assert.NotNull(response);
+    }
+
+    [Fact(Skip = "Manual test")]
+    public async Task QueryMarketTrend()
+    {
+        HttpClient client = new HttpClient();
+        const string url = "";
+        const string username = "";
+        const string password = "";
+        string query = "MarketTrend";
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{password}")));
+        string responseContent = await client.GetStringAsync($"{url}{query}");
+        Assert.NotNull(responseContent);
+        var response = JsonSerializer.Deserialize<MarketTrendApiResult>(responseContent);
         Assert.NotNull(response);
     }
 }

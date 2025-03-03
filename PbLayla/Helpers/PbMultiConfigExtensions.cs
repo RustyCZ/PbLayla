@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using CryptoExchange.Net.CommonObjects;
 using Hjson;
 using Microsoft.Extensions.Logging;
 using PbLayla.Model.Dori;
@@ -11,6 +12,95 @@ public static class PbMultiConfigExtensions
     public static string GenerateNormalConfig(this IPbMultiConfig template)
     {
         var config = template.Clone();
+        var serializedConfig = config.SerializeConfig();
+        return serializedConfig;
+    }
+
+    public static string GenerateNormalAdaptiveTrendConfig(this IPbMultiConfig template, 
+        string normalConfig, 
+        string unstuckConfig, 
+        double pbStuckThreshold, 
+        double pbLossAllowance)
+    {
+        var config = template.Clone();
+        config.LossAllowancePct = pbLossAllowance;
+        config.StuckThreshold = pbStuckThreshold;
+        var symbols = config.ParseSymbols();
+        foreach (var symbol in symbols)
+        {
+            if (symbol.LongMode == TradeMode.Normal)
+            {
+                // continue trading with normal config
+                symbol.LiveConfigPath = FormattableString.Invariant($"configs/{normalConfig}");
+            }
+            else if (symbol.LongMode == TradeMode.GracefulStop)
+            {
+                // Dori wants to exit this symbol
+                symbol.LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}");
+            }
+        }
+        config.UpdateSymbols(symbols);
+
+        var serializedConfig = config.SerializeConfig();
+        return serializedConfig;
+    }
+
+    public static string GenerateUnstuckAdaptiveTrendConfig(this IPbMultiConfig template, 
+        HashSet<string> symbolsToUnstuck,
+        string normalConfig,
+        string unstuckConfig, 
+        double pbStuckThreshold, 
+        double pbLossAllowance,
+        double unstuckExposure, 
+        bool disableOthers)
+    {
+        var config = template.Clone();
+        config.LossAllowancePct = pbLossAllowance;
+        config.StuckThreshold = pbStuckThreshold;
+        var symbols = config.ParseSymbols();
+        var foundSymbols = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+        foreach (var symbolConfig in symbols)
+        {
+            if (symbolsToUnstuck.Contains(symbolConfig.Symbol))
+            {
+                foundSymbols.Add(symbolConfig.Symbol);
+                symbolConfig.LongMode = TradeMode.GracefulStop;
+                symbolConfig.LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}");
+                symbolConfig.WalletExposureLimitLong = unstuckExposure;
+            }
+            else
+            {
+                if (disableOthers && symbolConfig.LongMode is TradeMode.GracefulStop or TradeMode.Normal)
+                {
+                    symbolConfig.LongMode = TradeMode.TakeProfitOnly;
+                    symbolConfig.LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}");
+                }
+                else if (symbolConfig.LongMode == TradeMode.Normal)
+                {
+                    symbolConfig.LiveConfigPath = FormattableString.Invariant($"configs/{normalConfig}");
+                }
+            }
+        }
+
+        // add stuck symbols that we have not found in config
+        foreach (var symbolToUnstuck in symbolsToUnstuck)
+        {
+            if (!foundSymbols.Contains(symbolToUnstuck))
+            {
+                var newSymbol = new SymbolOptions
+                {
+                    LongMode = TradeMode.GracefulStop,
+                    LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}"),
+                    Symbol = symbolToUnstuck,
+                    WalletExposureLimitLong = unstuckExposure,
+                    ShortMode = TradeMode.Manual,
+                };
+                symbols = symbols.Append(newSymbol).ToArray();
+            }
+        }
+
+        config.UpdateSymbols(symbols);
+
         var serializedConfig = config.SerializeConfig();
         return serializedConfig;
     }
