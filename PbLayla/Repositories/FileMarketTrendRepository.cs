@@ -6,12 +6,12 @@ namespace PbLayla.Repositories;
 
 public class FileMarketTrendRepository : IMarketTrendRepository
 {
-    private readonly ILogger m_logger;
+    private readonly ILogger<FileMarketTrendRepository> m_logger;
     private readonly string m_filePath;
     private MarketTrend? m_marketTrend;
     private string? m_marketTrendSerialized;
 
-    public FileMarketTrendRepository(IOptions<FileMarketTrendRepositoryOptions> options, ILogger logger)
+    public FileMarketTrendRepository(IOptions<FileMarketTrendRepositoryOptions> options, ILogger<FileMarketTrendRepository> logger)
     {
         m_logger = logger;
         string fileName = "dori_market_trend.json";
