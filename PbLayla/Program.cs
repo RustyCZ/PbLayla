@@ -81,6 +81,11 @@ internal class Program
             x.Password = configuration.Dori.Password;
             x.Url = configuration.Dori.Url;
         });
+        builder.Services.AddOptions<FileMarketTrendRepositoryOptions>().Configure(x =>
+        {
+            x.FileDirectory = configuration.Docker.ConfigsPath;
+        });
+        builder.Services.AddSingleton<IMarketTrendRepository, FileMarketTrendRepository>();
         bool useDori = configuration.Accounts.Any(x => x.ManageDori);
         bool marketTrendAdaptive = configuration.Accounts.Any(x => x.MarketTrendAdaptive);
         if (useDori || marketTrendAdaptive)
