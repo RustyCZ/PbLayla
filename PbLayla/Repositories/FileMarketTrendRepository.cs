@@ -16,6 +16,8 @@ public class FileMarketTrendRepository : IMarketTrendRepository
         m_logger = logger;
         string fileName = "dori_market_trend.json";
         m_filePath = Path.Combine(options.Value.FileDirectory, fileName);
+        if (!Directory.Exists(options.Value.FileDirectory))
+            Directory.CreateDirectory(options.Value.FileDirectory);
     }
 
     public async Task<MarketTrend?> TryLoadMarketTrendAsync(CancellationToken cancel = default)

@@ -83,7 +83,7 @@ internal class Program
         });
         builder.Services.AddOptions<FileMarketTrendRepositoryOptions>().Configure(x =>
         {
-            x.FileDirectory = configuration.Docker.ConfigsPath;
+            x.FileDirectory = configuration.Accounts.FirstOrDefault()?.ConfigsPath ?? "Data";
         });
         builder.Services.AddSingleton<IMarketTrendRepository, FileMarketTrendRepository>();
         bool useDori = configuration.Accounts.Any(x => x.ManageDori);
