@@ -79,6 +79,11 @@ public static class PbMultiConfigExtensions
                 {
                     symbolConfig.LiveConfigPath = FormattableString.Invariant($"configs/{normalConfig}");
                 }
+                else if (symbolConfig.LongMode == TradeMode.GracefulStop)
+                {
+                    // Dori wants to exit this symbol
+                    symbolConfig.LiveConfigPath = FormattableString.Invariant($"configs/{unstuckConfig}");
+                }
             }
         }
 
