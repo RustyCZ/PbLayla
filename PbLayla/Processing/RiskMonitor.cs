@@ -734,7 +734,7 @@ public class RiskMonitor : IRiskMonitor
                 unstuckConfig,
                 pbStuckThreshold,
                 pbLossAllowance,
-                m_options.Value.CautiousDistanceStuck,
+                m_options.Value.UnstuckExposure,
                 m_options.Value.DisableOthersWhileUnstucking),
             cancel);
     }
@@ -769,7 +769,7 @@ public class RiskMonitor : IRiskMonitor
                 unstuckConfig,
                 pbStuckThreshold,
                 pbLossAllowance,
-                m_options.Value.PriceDistanceStuck,
+                m_options.Value.UnstuckExposure,
                 m_options.Value.DisableOthersWhileUnstucking),
             cancel);
     }
