@@ -664,12 +664,6 @@ public class RiskMonitor : IRiskMonitor
         string unstuckConfig = m_options.Value.CautiousUnstuckConfig;
         double pbStuckThreshold = m_options.Value.FastReducePbStuckThreshold;
         double pbLossAllowance = m_options.Value.FastReducePbLossAllowance;
-        await EnsureStateAsync(
-            riskModel,
-            AccountState.AdaptiveCautiousFastReduce,
-            template => template.GenerateNormalAdaptiveTrendConfig(normalConfig, unstuckConfig, pbStuckThreshold, pbLossAllowance),
-            StartExchangeOperationsAsync,
-            cancel);
         m_currentUnstuckingSymbols.Clear();
 
         // keep unstucking only coins that are already overexposed and considered stuck under normal config
